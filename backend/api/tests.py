@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITransactionTestCase
 
-from recipes.models import Ingredient, Tag
+from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient
 from users.models import Subscribe
 
 
@@ -64,3 +64,40 @@ class UserApiTestCase(APITransactionTestCase):
             response.data['results'][0]['username'], self.author.username
         )
         self.assertTrue(response.data['results'][0]['is_subscribed'])
+
+
+class RecipeApiTestCase(APITransactionTestCase):
+    def setUp(self):
+        self.ingredient_1 = Ingredient.objects.create(
+            name='salt', measurement_unit='gr',
+        )
+        self.ingredient_2 = Ingredient.objects.create(
+            name='bread', measurement_unit='piece',
+        )
+        self.tag = Tag.objects.create(
+            name='Завтрак', color='#E26C2D', slug='breakfast'
+        )
+        self.user = User.objects.create_user(
+            username='user', email='user@user.com'
+        )
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.recipe = Recipe.objects.create(
+            name='bread with salt', author=self.user, cooking_time=1
+        )
+        self.recipe.tags.set([self.tag])
+        self.recipeingredient_1 = RecipeIngredient.objects.create(
+            recipe=self.recipe, ingredient=self.ingredient_1, amount=100
+        )
+        self.recipeingredient_2 = RecipeIngredient.objects.create(
+            recipe=self.recipe, ingredient=self.ingredient_2, amount=1
+        )
+        self.recipe.ingredients.set([self.ingredient_1, self.ingredient_2])
+
+    def test_list(self):
+        response = self.client.get(reverse('recipes-list'))
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEquals(response.data['count'], 1)
+        self.assertEquals(
+            response.data['results'][0]['name'], self.recipe.name
+        )

@@ -10,10 +10,9 @@ from rest_framework.viewsets import ModelViewSet
 
 from users.models import Subscribe
 from .serializers import (
-    IngredientSerializer, TagSerializer, CustomUserSerializer
+    IngredientSerializer, TagSerializer, CustomUserSerializer, RecipeSerializer
 )
-from recipes.models import Ingredient, Tag
-
+from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient
 
 User = get_user_model()
 
@@ -22,24 +21,10 @@ class CustomPagination(PageNumberPagination):
     page_size_query_param = 'limit'
 
 
-def is_subscribed(self, user):
-    return self.annotate(
-        is_subscribed=Exists(
-            Subscribe.objects.filter(
-                subscriber=user, author__pk=OuterRef('pk')
-            )
-        )
-    )
-
-
 class CustomUserViewSet(UserViewSet):
+    queryset = User.objects.all()
     serializer_class = CustomUserSerializer
     pagination_class = CustomPagination
-
-    def get_queryset(self):
-        if not self.request.user.is_authenticated:
-            return super().get_queryset()
-        return is_subscribed(User.objects.all(), self.request.user)
 
     @action(
         detail=True, methods=['post', 'delete'], url_path='subscribe',
@@ -84,11 +69,10 @@ class CustomUserViewSet(UserViewSet):
     def subscriptions(self, request):
         user = request.user
         return self.get_paginated_response(CustomUserSerializer(
-            self.paginate_queryset(
-                is_subscribed(User.objects.filter(
-                    id__in=user.subscribes.values_list('author', flat=True)
-                ), user)
-            ), many=True
+            self.paginate_queryset(User.objects.filter(
+                id__in=user.subscribes.values_list('author', flat=True)
+            )
+            ), many=True, context={'request': request}
         ).data)
 
 
@@ -100,3 +84,27 @@ class IngredientViewSet(ModelViewSet):
 class TagViewSet(ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
+
+
+class RecipeViewSet(ModelViewSet):
+    queryset = Recipe.objects.all()
+    serializer_class = RecipeSerializer
+
+    def perform_create(self, serializer):
+        tags_id = self.request.data['tags']
+        tags = Tag.objects.filter(id__in=tags_id)
+        serializer.save(author=self.request.user, tags=tags)
+        ingredients = self.request.data['ingredients']
+        ingredients_id = []
+        for ingredient in ingredients:
+            RecipeIngredient.objects.create(
+                recipe=get_object_or_404(
+                    Recipe, name=self.request.data['name']
+                ),
+                ingredient=get_object_or_404(Ingredient, id=ingredient['id']),
+                amount=ingredient['amount']
+            )
+            ingredients_id.append(ingredient['id'])
+        serializer.save(
+            ingredients=Ingredient.objects.filter(id__in=ingredients_id)
+        )
