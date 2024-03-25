@@ -1,7 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from .models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite
+from .models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite, \
+    ShoppingCart
 
 User = get_user_model()
 
@@ -71,7 +72,7 @@ class RecipeModelTestCase(TestCase):
         self.assertEquals(recipe.cooking_time, 1)
 
 
-class FavoriteModelTestCase(TestCase):
+class RecipeUserModelTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username='User', email='user@user.com'
@@ -89,3 +90,10 @@ class FavoriteModelTestCase(TestCase):
         )
         self.assertEquals(favorite_recipe.recipe.name, 'sandwich')
         self.assertEquals(favorite_recipe.user.username, 'User')
+
+    def test_shopping_cart_creation(self):
+        shopping_cart = ShoppingCart.objects.create(
+            user=self.user, recipe=self.recipe
+        )
+        self.assertEquals(shopping_cart.recipe.name, 'sandwich')
+        self.assertEquals(shopping_cart.user.username, 'User')

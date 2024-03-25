@@ -98,7 +98,9 @@ class RecipeApiTestCase(APITransactionTestCase):
         self.recipe.ingredients.set([self.ingredient_1, self.ingredient_2])
 
     def test_list(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_author.key)
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + self.token_author.key
+        )
         response = self.client.get(reverse('recipes-list'))
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertEquals(response.data['count'], 1)
@@ -108,9 +110,23 @@ class RecipeApiTestCase(APITransactionTestCase):
 
     def test_favorite(self):
         self.client.credentials(
-            HTTP_AUTHORIZATION='Token ' + self.token_user.key)
+            HTTP_AUTHORIZATION='Token ' + self.token_user.key
+        )
         response = self.client.post(reverse('recipes-favorite', args=[1]))
         self.assertEquals(response.status_code, status.HTTP_201_CREATED)
         self.assertEquals(response.data['name'], 'bread with salt')
         response = self.client.get(reverse('recipes-list'))
         self.assertTrue(response.data['results'][0]['is_favorited'])
+
+    def test_shopping_cart(self):
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + self.token_user.key
+        )
+        response = self.client.get(reverse('recipes-list'))
+        print(response.status_code)
+        print(response.data['results'][0]['id'])
+        response = self.client.post(reverse('recipes-shoppingcart', args=[3]))
+        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        self.assertEquals(response.data['name'], 'bread with salt')
+        response = self.client.get(reverse('recipes-list'))
+        self.assertTrue(response.data['results'][0]['is_in_shopping_cart'])

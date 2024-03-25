@@ -1,5 +1,9 @@
+import json
+import tempfile
+from collections import defaultdict
+
 from django.contrib.auth import get_user_model
-from django.db.models import Exists, OuterRef
+from django.http import FileResponse
 from djoser.views import UserViewSet
 from rest_framework import status
 from rest_framework.decorators import action
@@ -11,9 +15,10 @@ from rest_framework.viewsets import ModelViewSet
 from users.models import Subscribe
 from .serializers import (
     IngredientSerializer, TagSerializer, CustomUserSerializer,
-    RecipeSerializer, FavoriteSerializer
+    RecipeSerializer, SimpleRecipeSerializer
 )
-from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite
+from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite, \
+    ShoppingCart
 
 User = get_user_model()
 
@@ -155,5 +160,51 @@ class RecipeViewSet(ModelViewSet):
             )
         Favorite.objects.create(user=user, recipe=recipe)
         return Response(
-            FavoriteSerializer(recipe).data, status=status.HTTP_201_CREATED
+            SimpleRecipeSerializer(recipe).data, status=status.HTTP_201_CREATED
         )
+
+    @action(
+        detail=True, methods=['post', 'delete'], url_path='shopping_cart',
+        url_name='shoppingcart'
+    )
+    def shopping_cart(self, request, pk):
+        recipe = get_object_or_404(Recipe, pk=pk)
+        user = request.user
+        if request.method == 'DELETE':
+            if not Favorite.objects.filter(
+                    user=user, recipe=recipe
+            ).exists():
+                return Response(
+                    {'errors': 'Этого рецепта нет в списке покупок'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            ShoppingCart.objects.filter(user=user, recipe=recipe).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        if ShoppingCart.objects.filter(user=user, recipe=recipe).exists():
+            return Response(
+                {'errors': 'Этот рецепт уже есть в списке покупок'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        ShoppingCart.objects.create(user=user, recipe=recipe)
+        return Response(
+            SimpleRecipeSerializer(recipe).data, status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=False, methods=['get'], url_path='download_shopping_cart')
+    def download_shopping_cart(self, request):
+        user = request.user
+        ingredients = RecipeIngredient.objects.filter(
+            recipe__in=user.shopping_carts.values_list('recipe', flat=True)
+        )
+        shopping_cart = defaultdict(int)
+        for ingredient in ingredients:
+            shopping_cart[ingredient.ingredient.name] += ingredient.amount
+        with tempfile.NamedTemporaryFile(
+                suffix='.txt', delete=False
+        ) as temp_file:
+            temp_file.write(json.dumps(dict(shopping_cart)).encode('utf-8'))
+        response = FileResponse(open(temp_file.name, 'rb'))
+        response['Content-Disposition'] = (
+            'attachment; filename="shopping_cart.txt"'
+        )
+        return response

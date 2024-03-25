@@ -5,7 +5,8 @@ from django.shortcuts import get_object_or_404
 from djoser.serializers import UserSerializer
 from rest_framework import serializers
 
-from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite
+from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite, \
+    ShoppingCart
 from users.models import Subscribe
 
 
@@ -62,7 +63,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
 class RecipeSerializer(serializers.ModelSerializer):
     is_favorited = serializers.SerializerMethodField()
-    is_in_shopping_cart = serializers.BooleanField(read_only=True, default=False)
+    is_in_shopping_cart = serializers.SerializerMethodField()
     image = Base64ImageField()
     tags = TagSerializer(many=True, read_only=True)
     ingredients = serializers.SerializerMethodField()
@@ -87,8 +88,15 @@ class RecipeSerializer(serializers.ModelSerializer):
             ).exists()
         return False
 
+    def get_is_in_shopping_cart(self, obj):
+        if self.context['request'].user.is_authenticated:
+            return ShoppingCart.objects.filter(
+                recipe=obj, user=self.context['request'].user
+            ).exists()
+        return False
 
-class FavoriteSerializer(serializers.ModelSerializer):
+
+class SimpleRecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('id', 'name', 'image', 'cooking_time')
