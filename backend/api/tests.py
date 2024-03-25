@@ -80,8 +80,11 @@ class RecipeApiTestCase(APITransactionTestCase):
         self.user = User.objects.create_user(
             username='user', email='user@user.com'
         )
-        token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.author = User.objects.create_user(
+            username='author', email='author@author.com'
+        )
+        self.token_author = Token.objects.create(user=self.author)
+        self.token_user = Token.objects.create(user=self.user)
         self.recipe = Recipe.objects.create(
             name='bread with salt', author=self.user, cooking_time=1
         )
@@ -95,9 +98,19 @@ class RecipeApiTestCase(APITransactionTestCase):
         self.recipe.ingredients.set([self.ingredient_1, self.ingredient_2])
 
     def test_list(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_author.key)
         response = self.client.get(reverse('recipes-list'))
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertEquals(response.data['count'], 1)
         self.assertEquals(
-            response.data['results'][0]['name'], self.recipe.name
+            response.data['results'][0]['name'], 'bread with salt'
         )
+
+    def test_favorite(self):
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + self.token_user.key)
+        response = self.client.post(reverse('recipes-favorite', args=[1]))
+        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        self.assertEquals(response.data['name'], 'bread with salt')
+        response = self.client.get(reverse('recipes-list'))
+        self.assertTrue(response.data['results'][0]['is_favorited'])

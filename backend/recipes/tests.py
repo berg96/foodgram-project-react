@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from .models import Ingredient, Tag, Recipe, RecipeIngredient
+from .models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite
 
 User = get_user_model()
 
@@ -43,10 +43,10 @@ class RecipeModelTestCase(TestCase):
             name='sandwich', author=self.author, cooking_time=1
         )
         recipe.tags.set([self.tag])
-        recipeingredient_1 = RecipeIngredient.objects.create(
+        RecipeIngredient.objects.create(
             ingredient=self.ingredient_1, recipe=recipe, amount=1
         )
-        recipeingredient_2 = RecipeIngredient.objects.create(
+        RecipeIngredient.objects.create(
                  ingredient=self.ingredient_2, recipe=recipe, amount=100
              )
         recipe.ingredients.set([self.ingredient_1, self.ingredient_2])
@@ -69,3 +69,23 @@ class RecipeModelTestCase(TestCase):
             else:
                 self.fail('Unknown ingredient')
         self.assertEquals(recipe.cooking_time, 1)
+
+
+class FavoriteModelTestCase(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='User', email='user@user.com'
+        )
+        self.author = User.objects.create_user(
+            username='Author', email='author@author.com'
+        )
+        self.recipe = Recipe.objects.create(
+            name='sandwich', author=self.author, cooking_time=1
+        )
+
+    def test_favorite_creation(self):
+        favorite_recipe = Favorite.objects.create(
+            user=self.user, recipe=self.recipe
+        )
+        self.assertEquals(favorite_recipe.recipe.name, 'sandwich')
+        self.assertEquals(favorite_recipe.user.username, 'User')

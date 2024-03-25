@@ -89,3 +89,19 @@ class RecipeIngredient(models.Model):
     def __str__(self):
         return (f'{self.amount} {self.ingredient.measurement_unit} '
                 f'{self.ingredient.name} в {self.recipe.name}')
+
+
+class Favorite(models.Model):
+    recipe = models.ForeignKey(
+        Recipe, on_delete=models.CASCADE, verbose_name='Рецепт'
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, verbose_name='Пользователь'
+    )
+
+    class Meta:
+        verbose_name = 'Избранный рецепт'
+        verbose_name_plural = 'Избранные рецепты'
+
+    def __str__(self):
+        return f'Избранный {self.recipe.name} у {self.user.username}'

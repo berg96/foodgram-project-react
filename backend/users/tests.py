@@ -28,5 +28,5 @@ class SubscribeModelTestCase(TestCase):
         subscribe = Subscribe.objects.create(
             author=self.author, subscriber=self.user
         )
-        self.assertEquals(subscribe.author, self.author)
-        self.assertEquals(subscribe.subscriber, self.user)
+        self.assertEquals(subscribe.author.username, 'Author')
+        self.assertEquals(subscribe.subscriber.username, 'User')

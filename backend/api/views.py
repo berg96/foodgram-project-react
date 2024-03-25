@@ -10,9 +10,10 @@ from rest_framework.viewsets import ModelViewSet
 
 from users.models import Subscribe
 from .serializers import (
-    IngredientSerializer, TagSerializer, CustomUserSerializer, RecipeSerializer
+    IngredientSerializer, TagSerializer, CustomUserSerializer,
+    RecipeSerializer, FavoriteSerializer
 )
-from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient
+from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite
 
 User = get_user_model()
 
@@ -53,14 +54,11 @@ class CustomUserViewSet(UserViewSet):
                 {'errors': 'Нельзя подписаться на самого себя'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        Subscribe.objects.create(
-            author=author, subscriber=user
+        Subscribe.objects.create(author=author, subscriber=user)
+        return Response(
+            CustomUserSerializer(author, context={'request': request}).data,
+            status=status.HTTP_201_CREATED
         )
-        data = CustomUserSerializer(author).data
-        data['is_subscribed'] = Subscribe.objects.filter(
-            author=author, subscriber=user
-        ).exists()
-        return Response(data, status=status.HTTP_201_CREATED)
 
     @action(
         detail=False, methods=['get'], url_path='subscriptions',
@@ -89,6 +87,7 @@ class TagViewSet(ModelViewSet):
 class RecipeViewSet(ModelViewSet):
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
+    http_method_names = ['get', 'post', 'patch', 'delete']
 
     def perform_create(self, serializer):
         tags_id = self.request.data['tags']
@@ -107,4 +106,54 @@ class RecipeViewSet(ModelViewSet):
             ingredients_id.append(ingredient['id'])
         serializer.save(
             ingredients=Ingredient.objects.filter(id__in=ingredients_id)
+        )
+
+    def perform_update(self, serializer):
+        recipe = get_object_or_404(Recipe, id=self.kwargs['pk'])
+        tags_id = self.request.data.get('tags')
+        if tags_id:
+            tags = Tag.objects.filter(id__in=tags_id)
+            serializer.save(tags=tags)
+        ingredients = self.request.data.get('ingredients')
+        if ingredients:
+            RecipeIngredient.objects.filter(recipe=recipe).delete()
+            ingredients_id = []
+            for ingredient in ingredients:
+                RecipeIngredient.objects.create(
+                    recipe=recipe,
+                    ingredient=get_object_or_404(
+                        Ingredient, id=ingredient['id']
+                    ),
+                    amount=ingredient['amount']
+                )
+                ingredients_id.append(ingredient['id'])
+            serializer.save(
+                ingredients=Ingredient.objects.filter(id__in=ingredients_id)
+            )
+
+    @action(
+        detail=True, methods=['post', 'delete'], url_path='favorite',
+        url_name='favorite'
+    )
+    def favorite(self, request, pk):
+        recipe = get_object_or_404(Recipe, pk=pk)
+        user = request.user
+        if request.method == 'DELETE':
+            if not Favorite.objects.filter(
+                    user=user, recipe=recipe
+            ).exists():
+                return Response(
+                    {'errors': 'Этого рецепта нет в избранных'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            Subscribe.objects.filter(user=user, recipe=recipe).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        if Favorite.objects.filter(user=user, recipe=recipe).exists():
+            return Response(
+                {'errors': 'Этот рецепт уже есть в избранных'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        Favorite.objects.create(user=user, recipe=recipe)
+        return Response(
+            FavoriteSerializer(recipe).data, status=status.HTTP_201_CREATED
         )
