@@ -22,6 +22,12 @@ class TagSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class SimpleRecipeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recipe
+        fields = ('id', 'name', 'image', 'cooking_time')
+
+
 class CustomUserSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
 
@@ -34,6 +40,28 @@ class CustomUserSerializer(UserSerializer):
                 author=obj, subscriber=self.context['request'].user
             ).exists()
         return False
+
+
+class SubscribeSerializer(CustomUserSerializer):
+    recipes = SimpleRecipeSerializer(many=True)
+    recipes_count = serializers.SerializerMethodField()
+
+    class Meta(CustomUserSerializer.Meta):
+        fields = CustomUserSerializer.Meta.fields + (
+            'recipes', 'recipes_count'
+        )
+
+    def get_recipes_count(self, obj):
+        return obj.recipes.all().count()
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        recipes_limit = self.context['request'].GET.get('recipes_limit')
+        if recipes_limit is not None:
+            representation['recipes'] = (
+                representation['recipes'][:int(recipes_limit)]
+            )
+        return representation
 
 
 class Base64ImageField(serializers.ImageField):
@@ -94,9 +122,3 @@ class RecipeSerializer(serializers.ModelSerializer):
                 recipe=obj, user=self.context['request'].user
             ).exists()
         return False
-
-
-class SimpleRecipeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Recipe
-        fields = ('id', 'name', 'image', 'cooking_time')

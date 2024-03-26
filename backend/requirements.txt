@@ -3,3 +3,4 @@ djangorestframework==3.12.4
 webcolors==1.11.1
 djoser==2.1.0
 Pillow==9.0.0
+django-filter==23.5

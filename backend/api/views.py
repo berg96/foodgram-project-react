@@ -4,27 +4,27 @@ from collections import defaultdict
 
 from django.contrib.auth import get_user_model
 from django.http import FileResponse
+from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
-from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from users.models import Subscribe
+from .filters import CustomPagination, IngredientSearchFilter, RecipeFilter
+from .permissions import AuthorOrReadOnly
 from .serializers import (
     IngredientSerializer, TagSerializer, CustomUserSerializer,
-    RecipeSerializer, SimpleRecipeSerializer
+    RecipeSerializer, SimpleRecipeSerializer, SubscribeSerializer
 )
-from recipes.models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite, \
-    ShoppingCart
+from recipes.models import (
+    Ingredient, Tag, Recipe, RecipeIngredient, Favorite, ShoppingCart
+)
 
 User = get_user_model()
-
-
-class CustomPagination(PageNumberPagination):
-    page_size_query_param = 'limit'
 
 
 class CustomUserViewSet(UserViewSet):
@@ -61,7 +61,7 @@ class CustomUserViewSet(UserViewSet):
             )
         Subscribe.objects.create(author=author, subscriber=user)
         return Response(
-            CustomUserSerializer(author, context={'request': request}).data,
+            SubscribeSerializer(author, context={'request': request}).data,
             status=status.HTTP_201_CREATED
         )
 
@@ -71,28 +71,34 @@ class CustomUserViewSet(UserViewSet):
     )
     def subscriptions(self, request):
         user = request.user
-        return self.get_paginated_response(CustomUserSerializer(
+        return self.get_paginated_response(SubscribeSerializer(
             self.paginate_queryset(User.objects.filter(
                 id__in=user.subscribes.values_list('author', flat=True)
-            )
-            ), many=True, context={'request': request}
+            )), many=True, context={'request': request}
         ).data)
 
 
 class IngredientViewSet(ModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
+    filter_backends = (IngredientSearchFilter,)
+    search_fields = ('^name',)
 
 
 class TagViewSet(ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
+    http_method_names = ['get']
 
 
 class RecipeViewSet(ModelViewSet):
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
+    pagination_class = CustomPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = RecipeFilter
     http_method_names = ['get', 'post', 'patch', 'delete']
+    permission_classes = [AuthorOrReadOnly]
 
     def perform_create(self, serializer):
         tags_id = self.request.data['tags']
@@ -138,7 +144,7 @@ class RecipeViewSet(ModelViewSet):
 
     @action(
         detail=True, methods=['post', 'delete'], url_path='favorite',
-        url_name='favorite'
+        url_name='favorite', permission_classes=[IsAuthenticated]
     )
     def favorite(self, request, pk):
         recipe = get_object_or_404(Recipe, pk=pk)
@@ -165,7 +171,7 @@ class RecipeViewSet(ModelViewSet):
 
     @action(
         detail=True, methods=['post', 'delete'], url_path='shopping_cart',
-        url_name='shoppingcart'
+        url_name='shoppingcart', permission_classes=[IsAuthenticated]
     )
     def shopping_cart(self, request, pk):
         recipe = get_object_or_404(Recipe, pk=pk)
@@ -190,7 +196,10 @@ class RecipeViewSet(ModelViewSet):
             SimpleRecipeSerializer(recipe).data, status=status.HTTP_201_CREATED
         )
 
-    @action(detail=False, methods=['get'], url_path='download_shopping_cart')
+    @action(
+        detail=False, methods=['get'], url_path='download_shopping_cart',
+        permission_classes=[IsAuthenticated]
+    )
     def download_shopping_cart(self, request):
         user = request.user
         ingredients = RecipeIngredient.objects.filter(
