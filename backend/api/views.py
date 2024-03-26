@@ -1,6 +1,4 @@
-import json
 import tempfile
-from collections import defaultdict
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -16,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from .filters import CustomPagination, IngredientSearchFilter, RecipeFilter
-from .permissions import AuthorOrReadOnly
+from .permissions import AuthorAdminOrReadOnly
 from .serializers import (
     CustomUserSerializer, IngredientSerializer, RecipeSerializer,
     SimpleRecipeSerializer, SubscribeSerializer, TagSerializer
@@ -82,7 +80,7 @@ class CustomUserViewSet(UserViewSet):
 
     @action(
         detail=False, methods=['get'], url_path='subscriptions',
-        url_name='subscriptions'
+        url_name='subscriptions', permission_classes=[IsAuthenticated]
     )
     def subscriptions(self, request):
         user = request.user
@@ -105,8 +103,8 @@ class IngredientViewSet(ModelViewSet):
 class TagViewSet(ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    http_method_names = ['get']
     pagination_class = None
+    http_method_names = ['get']
 
 
 class RecipeViewSet(ModelViewSet):
@@ -116,7 +114,7 @@ class RecipeViewSet(ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
     http_method_names = ['get', 'post', 'patch', 'delete']
-    permission_classes = [AuthorOrReadOnly]
+    permission_classes = [AuthorAdminOrReadOnly]
 
     def perform_create(self, serializer):
         tags_id = self.request.data.get('tags')
@@ -219,13 +217,15 @@ class RecipeViewSet(ModelViewSet):
         ingredients = RecipeIngredient.objects.filter(
             recipe__in=user.shopping_carts.values_list('recipe', flat=True)
         )
-        shopping_cart = defaultdict(int)
+        shopping_cart = ''
         for ingredient in ingredients:
-            shopping_cart[ingredient.ingredient.name] += ingredient.amount
+            shopping_cart += (
+                f'{ingredient.ingredient} — {ingredient.amount}\n'
+            )
         with tempfile.NamedTemporaryFile(
                 suffix='.txt', delete=False
         ) as temp_file:
-            temp_file.write(json.dumps(dict(shopping_cart)).encode('utf-8'))
+            temp_file.write(shopping_cart[:-1].encode('utf-8'))
         response = FileResponse(open(temp_file.name, 'rb'))
         response['Content-Disposition'] = (
             'attachment; filename="shopping_cart.txt"'

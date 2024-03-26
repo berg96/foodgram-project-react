@@ -8,6 +8,8 @@ from .models import (
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
     list_display = ('name', 'measurement_unit')
+    list_filter = ('name',)
+    search_fields = ('name',)
 
 
 @admin.register(Tag)
@@ -29,6 +31,17 @@ class RecipeIngredientInline(admin.TabularInline):
 class RecipeAdmin(admin.ModelAdmin):
     list_display = ('name', 'author', 'pub_time')
     inlines = [RecipeIngredientInline]
+    list_filter = ('author', 'name', 'tags__slug')
+    filter_horizontal = ('tags',)
+    search_fields = ('name',)
+    readonly_fields = ('favorite_count',)
+
+    def favorite_count(self, obj):
+        return Favorite.objects.filter(recipe=obj).count()
+
+    favorite_count.short_description = (
+        'Кол-во добавлений этого рецепта в избранное'
+    )
 
 
 @admin.register(Favorite)

@@ -10,9 +10,12 @@ MIN_VALUE_COOKING_TIME = 1
 
 
 class Ingredient(models.Model):
-    name = models.CharField(max_length=MAX_LENGTH, verbose_name='Название')
+    name = models.CharField(
+        max_length=MAX_LENGTH, blank=False, null=False, verbose_name='Название'
+    )
     measurement_unit = models.CharField(
-        max_length=MAX_LENGTH, verbose_name='Единица измерения'
+        max_length=MAX_LENGTH, blank=False, null=False,
+        verbose_name='Единица измерения'
     )
 
     class Meta:
@@ -25,11 +28,17 @@ class Ingredient(models.Model):
 
 
 class Tag(models.Model):
-    name = models.CharField(max_length=MAX_LENGTH, verbose_name='Название')
-    color = models.CharField(max_length=MAX_LENGTH_COLOR, verbose_name='Цвет')
+    name = models.CharField(
+        max_length=MAX_LENGTH, blank=False, null=False, unique=True,
+        verbose_name='Название'
+    )
+    color = models.CharField(
+        max_length=MAX_LENGTH_COLOR, blank=False, null=False, unique=True,
+        verbose_name='Цвет'
+    )
     slug = models.SlugField(
-        max_length=MAX_LENGTH, verbose_name='Слаг', unique=True,
-        validators=[validate_slug]
+        max_length=MAX_LENGTH, blank=False, null=False, unique=True,
+        validators=[validate_slug], verbose_name='Слаг'
     )
 
     class Meta:
@@ -42,7 +51,9 @@ class Tag(models.Model):
 
 
 class Recipe(models.Model):
-    name = models.CharField(max_length=MAX_LENGTH, verbose_name='Название')
+    name = models.CharField(
+        max_length=MAX_LENGTH, blank=False, null=False, verbose_name='Название'
+    )
     author = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='recipes',
         verbose_name='Автор'
@@ -56,11 +67,13 @@ class Recipe(models.Model):
         Tag, related_name='recipes', verbose_name='Тэги'
     )
     image = models.ImageField(
-        upload_to='recipes/images', verbose_name='Картинка'
+        upload_to='recipes/images', blank=False, null=False,
+        verbose_name='Картинка'
     )
-    text = models.TextField(verbose_name='Описание')
+    text = models.TextField(blank=False, null=False, verbose_name='Описание')
     cooking_time = models.IntegerField(
-        validators=[MinValueValidator(1)], verbose_name='Время приготовления'
+        validators=[MinValueValidator(1)], blank=False, null=False,
+        verbose_name='Время приготовления'
     )
     pub_time = models.DateTimeField(
         auto_now_add=True, verbose_name='Время публикации'
