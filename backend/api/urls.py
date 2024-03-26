@@ -5,7 +5,7 @@ from django.urls import include
 from rest_framework import routers
 
 from .views import (
-    IngredientViewSet, TagViewSet, CustomUserViewSet, RecipeViewSet
+    CustomUserViewSet, IngredientViewSet, RecipeViewSet, TagViewSet
 )
 
 router_v1 = routers.DefaultRouter()

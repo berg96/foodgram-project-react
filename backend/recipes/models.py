@@ -1,14 +1,18 @@
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, validate_slug
 from django.db import models
 
 User = get_user_model()
 
+MAX_LENGTH = 200
+MAX_LENGTH_COLOR = 7
+MIN_VALUE_COOKING_TIME = 1
+
 
 class Ingredient(models.Model):
-    name = models.CharField(max_length=200, verbose_name='Название')
+    name = models.CharField(max_length=MAX_LENGTH, verbose_name='Название')
     measurement_unit = models.CharField(
-        max_length=200, verbose_name='Единица измерения'
+        max_length=MAX_LENGTH, verbose_name='Единица измерения'
     )
 
     class Meta:
@@ -21,11 +25,12 @@ class Ingredient(models.Model):
 
 
 class Tag(models.Model):
-    name = models.CharField(
-        max_length=200, verbose_name='Название', unique=True
+    name = models.CharField(max_length=MAX_LENGTH, verbose_name='Название')
+    color = models.CharField(max_length=MAX_LENGTH_COLOR, verbose_name='Цвет')
+    slug = models.SlugField(
+        max_length=MAX_LENGTH, verbose_name='Слаг', unique=True,
+        validators=[validate_slug]
     )
-    color = models.CharField(max_length=7, verbose_name='Цвет', unique=True)
-    slug = models.SlugField(max_length=200, verbose_name='Слаг', unique=True)
 
     class Meta:
         verbose_name = 'Тэг'
@@ -37,7 +42,7 @@ class Tag(models.Model):
 
 
 class Recipe(models.Model):
-    name = models.CharField(max_length=200, verbose_name='Название')
+    name = models.CharField(max_length=MAX_LENGTH, verbose_name='Название')
     author = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='recipes',
         verbose_name='Автор'
@@ -70,7 +75,7 @@ class Recipe(models.Model):
         return f'{self.name} ({self.author.username}) {self.pub_time}'
 
 
-class RecipeBase(models.Model):
+class BaseRecipeModel(models.Model):
     recipe = models.ForeignKey(
         Recipe, on_delete=models.CASCADE, verbose_name='Рецепт'
     )
@@ -79,7 +84,7 @@ class RecipeBase(models.Model):
         abstract = True
 
 
-class RecipeIngredient(RecipeBase):
+class RecipeIngredient(BaseRecipeModel):
     ingredient = models.ForeignKey(
         Ingredient, on_delete=models.CASCADE, verbose_name='Ингредиент'
     )
@@ -87,7 +92,8 @@ class RecipeIngredient(RecipeBase):
         Recipe, on_delete=models.CASCADE, verbose_name='Рецепт'
     )
     amount = models.IntegerField(
-        validators=[MinValueValidator(1)], verbose_name='Количество'
+        validators=[MinValueValidator(MIN_VALUE_COOKING_TIME)],
+        verbose_name='Количество'
     )
 
     class Meta:
@@ -100,7 +106,7 @@ class RecipeIngredient(RecipeBase):
                 f'{self.ingredient.name} в {self.recipe.name}')
 
 
-class Favorite(RecipeBase):
+class Favorite(BaseRecipeModel):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='favorites',
         verbose_name='Пользователь'
@@ -115,7 +121,7 @@ class Favorite(RecipeBase):
         return f'Избранный {self.recipe.name} у {self.user.username}'
 
 
-class ShoppingCart(RecipeBase):
+class ShoppingCart(BaseRecipeModel):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='shopping_carts',
         verbose_name='Пользователь'
