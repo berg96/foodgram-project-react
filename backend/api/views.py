@@ -2,6 +2,7 @@ import tempfile
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db.models import Exists, OuterRef
 from django.http import FileResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
@@ -13,17 +14,19 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from .filters import CustomPagination, IngredientSearchFilter, RecipeFilter
-from .permissions import AuthorAdminOrReadOnly
-from .serializers import (
-    CustomUserSerializer, IngredientSerializer, RecipeSerializer,
-    SimpleRecipeSerializer, SubscribeSerializer, TagSerializer
-)
-from .validators import validate_recipe_id, validate_tags_and_ingredients
 from recipes.models import (
     Favorite, Ingredient, Recipe, RecipeIngredient, ShoppingCart, Tag
 )
 from users.models import Subscribe
+
+from .filters import CustomPagination, IngredientSearchFilter, RecipeFilter
+from .permissions import AuthorAdminOrReadOnly
+from .serializers import (
+    CustomUserSerializer, IngredientSerializer, RecipeReadSerializer,
+    RecipeWriteSerializer, SimpleRecipeSerializer, SubscribeSerializer,
+    TagSerializer
+)
+from .validators import validate_recipe_id
 
 User = get_user_model()
 
@@ -39,14 +42,24 @@ class CustomUserViewSet(UserViewSet):
     serializer_class = CustomUserSerializer
     pagination_class = CustomPagination
 
+    def get_queryset(self):
+        if self.request.user.is_anonymous:
+            return super().get_queryset()
+        return User.objects.annotate(
+            is_subscribed=Exists(
+                Subscribe.objects.filter(
+                    subscriber=self.request.user,
+                    author_id=OuterRef('id')
+                )
+            )
+        )
+
     @action(
         detail=False, url_path=settings.SELF_PROFILE_NAME,
         permission_classes=[IsAuthenticated]
     )
     def me(self, request):
-        return Response(CustomUserSerializer(
-            request.user, context={'request': request}
-        ).data)
+        return Response(CustomUserSerializer(request.user).data)
 
     @action(
         detail=True, methods=['post', 'delete'], url_path='subscribe',
@@ -74,7 +87,9 @@ class CustomUserViewSet(UserViewSet):
             )
         Subscribe.objects.create(author=author, subscriber=user)
         return Response(
-            SubscribeSerializer(author, context={'request': request}).data,
+            SubscribeSerializer(author, context={
+                'recipes_limit': request.query_params.get('recipes_limit')
+            }).data,
             status=status.HTTP_201_CREATED
         )
 
@@ -85,9 +100,12 @@ class CustomUserViewSet(UserViewSet):
     def subscriptions(self, request):
         user = request.user
         return self.get_paginated_response(SubscribeSerializer(
-            self.paginate_queryset(User.objects.filter(
+            self.paginate_queryset(self.get_queryset().filter(
                 id__in=user.subscribes.values_list('author', flat=True)
-            )), many=True, context={'request': request}
+            )), many=True,
+            context={
+                'recipes_limit': request.query_params.get('recipes_limit')
+            }
         ).data)
 
 
@@ -109,50 +127,22 @@ class TagViewSet(ModelViewSet):
 
 class RecipeViewSet(ModelViewSet):
     queryset = Recipe.objects.all()
-    serializer_class = RecipeSerializer
     pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
     http_method_names = ['get', 'post', 'patch', 'delete']
     permission_classes = [AuthorAdminOrReadOnly]
 
-    def perform_create(self, serializer):
-        tags_id = self.request.data.get('tags')
-        ingredients = self.request.data.get('ingredients')
-        validate_tags_and_ingredients(tags_id, ingredients)
-        serializer.save(
-            author=self.request.user, tags=Tag.objects.filter(id__in=tags_id)
-        )
-        ingredients_id = []
-        for ingredient in ingredients:
-            RecipeIngredient.objects.create(
-                recipe=serializer.instance,
-                ingredient=get_object_or_404(Ingredient, id=ingredient['id']),
-                amount=ingredient['amount']
-            )
-            ingredients_id.append(ingredient['id'])
-        serializer.save(
-            ingredients=Ingredient.objects.filter(id__in=ingredients_id)
-        )
+    def get_queryset(self):
+        return Recipe.objects.add_user_annotations(self.request.user.pk)
 
-    def perform_update(self, serializer):
-        tags_id = self.request.data.get('tags')
-        ingredients = self.request.data.get('ingredients')
-        validate_tags_and_ingredients(tags_id, ingredients)
-        recipe = serializer.instance
-        RecipeIngredient.objects.filter(recipe=recipe).delete()
-        ingredients_id = []
-        for ingredient in ingredients:
-            RecipeIngredient.objects.create(
-                recipe=recipe,
-                ingredient=get_object_or_404(Ingredient, id=ingredient['id']),
-                amount=ingredient['amount']
-            )
-            ingredients_id.append(ingredient['id'])
-        serializer.save(
-            ingredients=Ingredient.objects.filter(id__in=ingredients_id),
-            tags=Tag.objects.filter(id__in=tags_id)
-        )
+    def get_serializer_class(self):
+        if self.action in ('list', 'retrieve'):
+            return RecipeReadSerializer
+        return RecipeWriteSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
 
     @action(
         detail=True, methods=['post', 'delete'], url_path='favorite',

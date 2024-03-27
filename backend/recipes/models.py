@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, validate_slug
 from django.db import models
+from django.db.models import Exists, OuterRef
 
 User = get_user_model()
 
@@ -50,6 +51,25 @@ class Tag(models.Model):
         return f'{self.name} ({self.slug}, {self.color})'
 
 
+class RecipeQuerySet(models.QuerySet):
+
+    def add_user_annotations(self, user_id):
+        return self.annotate(
+            is_favorited=Exists(
+                Favorite.objects.filter(
+                    user_id=user_id,
+                    recipe__pk=OuterRef('pk')
+                )
+            ),
+            is_in_shopping_cart=Exists(
+                ShoppingCart.objects.filter(
+                    user_id=user_id,
+                    recipe__pk=OuterRef('pk')
+                )
+            )
+        )
+
+
 class Recipe(models.Model):
     name = models.CharField(
         max_length=MAX_LENGTH, blank=False, null=False, verbose_name='Название'
@@ -78,6 +98,8 @@ class Recipe(models.Model):
     pub_time = models.DateTimeField(
         auto_now_add=True, verbose_name='Время публикации'
     )
+
+    objects = RecipeQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'Рецепт'
