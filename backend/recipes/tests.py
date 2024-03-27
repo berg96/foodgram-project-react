@@ -49,8 +49,8 @@ class RecipeModelTestCase(TestCase):
             ingredient=self.ingredient_1, recipe=recipe, amount=1
         )
         RecipeIngredient.objects.create(
-                 ingredient=self.ingredient_2, recipe=recipe, amount=100
-             )
+            ingredient=self.ingredient_2, recipe=recipe, amount=100
+        )
         recipe.ingredients.set([self.ingredient_1, self.ingredient_2])
         self.assertEquals(recipe.name, 'sandwich')
         tags = recipe.tags.all()
