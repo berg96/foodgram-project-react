@@ -39,6 +39,10 @@ docker compose -f docker-compose.yml up -d
 ```
 Собрать миграции и собрать статику:
 ```
-docker compose -f docker-compose.production.yml exec backend python manage.py migrate
-docker compose -f docker-compose.production.yml exec backend python manage.py collectstatic
+docker compose -f docker-compose.yml exec backend python manage.py migrate
+docker compose -f docker-compose.yml exec backend python manage.py collectstatic
+```
+Наполнить БД ингредиентами:
+```
+docker compose -f docker-compose.yml exec backend python manage.py import_ingredients
 ```
