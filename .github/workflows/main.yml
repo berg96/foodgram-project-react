@@ -134,7 +134,6 @@ jobs:
             sudo docker compose -f docker-compose.yml up -d
             sudo docker compose -f docker-compose.yml exec backend python manage.py migrate
             sudo docker compose -f docker-compose.yml exec backend python manage.py collectstatic
-#            sudo docker compose -f docker-compose.yml exec backend cp -r /app/static_django/. /backend_static/static/
             sudo docker compose -f docker-compose.yml exec backend python manage.py import_ingredients
 
   send_message:
