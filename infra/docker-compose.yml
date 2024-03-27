@@ -26,11 +26,10 @@ services:
       - media://app/media/
 
   frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
+    image: berg1005/foodgram_frontend
+    command: cp -r /app/build/. /result_build/
     volumes:
-      - static_frontend://app/result_build/
+      - static_frontend://result_build/
 
   nginx:
     image: nginx:1.19.3
