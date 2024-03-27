@@ -20,7 +20,7 @@ class IngredientApiTestCase(APITransactionTestCase):
         response = self.client.get(reverse('ingredients-list'))
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertEquals(
-            response.data['results'][0]['name'], self.ingredient.name
+            response.data[0]['name'], self.ingredient.name
         )
 
 
@@ -33,7 +33,7 @@ class TagApiTestCase(APITransactionTestCase):
     def test_list(self):
         response = self.client.get(reverse('tags-list'))
         self.assertEquals(response.status_code, status.HTTP_200_OK)
-        self.assertEquals(response.data['results'][0]['name'], self.tag.name)
+        self.assertEquals(response.data[0]['name'], 'Завтрак')
 
 
 class UserApiTestCase(APITransactionTestCase):
