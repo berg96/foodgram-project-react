@@ -17,14 +17,13 @@ class User(AbstractUser):
     REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
 
     email = models.EmailField(
-        max_length=MAX_LENGTH_EMAIL, unique=True, null=False,
-        verbose_name='E-mail'
+        max_length=MAX_LENGTH_EMAIL, unique=True, verbose_name='E-mail'
     )
     first_name = models.CharField(
-        max_length=MAX_LENGTH_USER_FIELDS, null=False, verbose_name='Имя'
+        max_length=MAX_LENGTH_USER_FIELDS, verbose_name='Имя'
     )
     last_name = models.CharField(
-        max_length=MAX_LENGTH_USER_FIELDS, null=False, verbose_name='Фамилия'
+        max_length=MAX_LENGTH_USER_FIELDS, verbose_name='Фамилия'
     )
     username = models.CharField(
         max_length=MAX_LENGTH_USER_FIELDS, unique=True,
@@ -44,11 +43,11 @@ class User(AbstractUser):
 
 class Subscribe(models.Model):
     author = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='subs',
+        User, on_delete=models.CASCADE, related_name='subscribers',
         verbose_name='Автор'
     )
     subscriber = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='subscribes',
+        User, on_delete=models.CASCADE, related_name='subscriptions',
         verbose_name='Подписчик'
     )
 

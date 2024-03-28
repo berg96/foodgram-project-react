@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
 
 from .models import (
     Favorite, Ingredient, Recipe, RecipeIngredient, ShoppingCart, Tag, User,
@@ -55,14 +56,45 @@ class ShoppingCartAdmin(admin.ModelAdmin):
     list_display = ('recipe', 'user')
 
 
+class SubscribeFilter(admin.SimpleListFilter):
+    title = 'Фильтр по подпискам и подписчикам'
+    parameter_name = 'subscribe_filter'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('subscriptions', 'Есть подписки'),
+            ('subscribers', 'Есть подписчики'),
+        )
+
+    def queryset(self, request, users):
+        if self.value() == 'subscriptions':
+            return users.filter(subscriptions__gte=0)
+        if self.value() == 'subscribers':
+            return users.filter(subscribers__gte=0)
+
+
 @admin.register(User)
-class UserAdmin(admin.ModelAdmin):
-    list_display = ('username', 'email', 'first_name', 'last_name')
-    list_filter = ('username', 'email')
+class UserAdmin(UserAdmin):
+    list_display = (
+        'username', 'email', 'first_name', 'last_name', 'recipes_count',
+        'subscriptions_count', 'subscribers_count'
+    )
+    list_filter = (SubscribeFilter,)
     search_fields = ('username', 'email', 'first_name', 'last_name')
+
+    @admin.display(description='Кол-во рецептов')
+    def recipes_count(self, user):
+        return user.recipes.count()
+
+    @admin.display(description='Кол-во подписок')
+    def subscriptions_count(self, user):
+        return user.subscriptions.count()
+
+    @admin.display(description='Кол-во подписчиков')
+    def subscribers_count(self, user):
+        return user.subscribers.count()
 
 
 @admin.register(Subscribe)
 class SubscribeAdmin(admin.ModelAdmin):
     list_display = ('author', 'subscriber')
-

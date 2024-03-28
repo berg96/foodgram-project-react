@@ -101,7 +101,7 @@ class CustomUserViewSet(UserViewSet):
         user = request.user
         return self.get_paginated_response(SubscribeSerializer(
             self.paginate_queryset(self.get_queryset().filter(
-                id__in=user.subscribes.values_list('author', flat=True)
+                id__in=user.subscriptions.values_list('author', flat=True)
             )), many=True,
             context={
                 'recipes_limit': request.query_params.get('recipes_limit')

@@ -3,7 +3,7 @@ import re
 from django.conf import settings
 from rest_framework.exceptions import ValidationError
 
-PATTERN = r'^[\w.@+-]+\Z'
+PATTERN = r'[\w.@+-]'
 
 
 def validate_username(username):
@@ -12,9 +12,10 @@ def validate_username(username):
             f'Нельзя использовать "{settings.SELF_PROFILE_NAME}" '
             'в качестве username'
         )
-    if not re.fullmatch(PATTERN, username):
+    invalid_symbols = re.sub(PATTERN, '', username)
+    if invalid_symbols:
         raise ValidationError(
             'Недопустимые символы в username: '
-            f'{"".join(set(re.sub(PATTERN, "", username)))}'
+            f'{"".join(set(invalid_symbols))}'
         )
     return username
