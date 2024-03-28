@@ -1,13 +1,63 @@
-from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, validate_slug
 from django.db import models
 from django.db.models import Exists, OuterRef
 
-User = get_user_model()
+from .validators import validate_username
 
 MAX_LENGTH = 200
 MAX_LENGTH_COLOR = 7
 MIN_VALUE_COOKING_TIME = 1
+MAX_LENGTH_USER_FIELDS = 150
+MAX_LENGTH_EMAIL = 254
+
+
+class User(AbstractUser):
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+
+    email = models.EmailField(
+        max_length=MAX_LENGTH_EMAIL, unique=True, null=False,
+        verbose_name='E-mail'
+    )
+    first_name = models.CharField(
+        max_length=MAX_LENGTH_USER_FIELDS, null=False, verbose_name='Имя'
+    )
+    last_name = models.CharField(
+        max_length=MAX_LENGTH_USER_FIELDS, null=False, verbose_name='Фамилия'
+    )
+    username = models.CharField(
+        max_length=MAX_LENGTH_USER_FIELDS, unique=True,
+        validators=[validate_username],
+        verbose_name='Никнейм'
+    )
+
+    class Meta:
+        verbose_name = 'Пользователя'
+        verbose_name_plural = 'Пользователи'
+        ordering = ('username',)
+
+    def __str__(self):
+        return (f'{self.username} ({self.first_name} {self.last_name}) '
+                f'- {self.email}')
+
+
+class Subscribe(models.Model):
+    author = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='subs',
+        verbose_name='Автор'
+    )
+    subscriber = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='subscribes',
+        verbose_name='Подписчик'
+    )
+
+    class Meta:
+        verbose_name = 'Подписку'
+        verbose_name_plural = 'Подписки'
+
+    def __str__(self):
+        return f'{self.subscriber.username} подписан на {self.author.username}'
 
 
 class Ingredient(models.Model):
@@ -20,8 +70,8 @@ class Ingredient(models.Model):
     )
 
     class Meta:
-        verbose_name = 'Ингридиент'
-        verbose_name_plural = 'Ингридиенты'
+        verbose_name = 'Продукт'
+        verbose_name_plural = 'Продукты'
         ordering = ('name',)
 
     def __str__(self):
@@ -43,8 +93,8 @@ class Tag(models.Model):
     )
 
     class Meta:
-        verbose_name = 'Тэг'
-        verbose_name_plural = 'Тэги'
+        verbose_name = 'Тег'
+        verbose_name_plural = 'Теги'
         ordering = ('name',)
 
     def __str__(self):
@@ -81,10 +131,10 @@ class Recipe(models.Model):
     ingredients = models.ManyToManyField(
         Ingredient, through='RecipeIngredient',
         through_fields=('recipe', 'ingredient'), related_name='recipes',
-        verbose_name='Ингредиенты'
+        verbose_name='Продукты'
     )
     tags = models.ManyToManyField(
-        Tag, related_name='recipes', verbose_name='Тэги'
+        Tag, related_name='recipes', verbose_name='Теги'
     )
     image = models.ImageField(
         upload_to='recipes/images', blank=False, null=False,
@@ -121,19 +171,19 @@ class BaseRecipeModel(models.Model):
 
 class RecipeIngredient(BaseRecipeModel):
     ingredient = models.ForeignKey(
-        Ingredient, on_delete=models.CASCADE, verbose_name='Ингредиент'
+        Ingredient, on_delete=models.CASCADE, verbose_name='Продукт'
     )
     recipe = models.ForeignKey(
         Recipe, on_delete=models.CASCADE, verbose_name='Рецепт'
     )
     amount = models.IntegerField(
         validators=[MinValueValidator(MIN_VALUE_COOKING_TIME)],
-        verbose_name='Количество'
+        verbose_name='Мера'
     )
 
     class Meta:
-        verbose_name = 'Ингредиент в рецепте'
-        verbose_name_plural = 'Ингредиенты в рецептах'
+        verbose_name = 'Продукт в рецепте'
+        verbose_name_plural = 'Продукты в рецептах'
         ordering = ('recipe',)
 
     def __str__(self):

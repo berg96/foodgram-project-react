@@ -15,9 +15,9 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from recipes.models import (
-    Favorite, Ingredient, Recipe, RecipeIngredient, ShoppingCart, Tag
+    Favorite, Ingredient, Recipe, RecipeIngredient, ShoppingCart, Subscribe,
+    Tag
 )
-from users.models import Subscribe
 
 from .filters import CustomPagination, IngredientSearchFilter, RecipeFilter
 from .permissions import AuthorAdminOrReadOnly

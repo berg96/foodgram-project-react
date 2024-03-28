@@ -10,7 +10,10 @@ class Command(BaseCommand):
         file_path = 'data/ingredients.csv'
         with open(file_path, 'r', encoding='utf8') as file:
             reader = csv.reader(file)
-            for row in reader:
-                Ingredient.objects.get_or_create(
+            ingredients = [
+                Ingredient(
                     name=row[0], measurement_unit=row[1]
                 )
+                for row in reader
+            ]
+            Ingredient.objects.bulk_create(ingredients)
