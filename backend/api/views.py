@@ -19,7 +19,7 @@ from recipes.models import (
     Tag
 )
 
-from .filters import CustomPagination, IngredientSearchFilter, RecipeFilter
+from .filters import CustomPagination, RecipeFilter, IngredientFilter
 from .permissions import AuthorAdminOrReadOnly
 from .serializers import (
     CustomUserSerializer, IngredientSerializer, RecipeReadSerializer,
@@ -112,8 +112,8 @@ class CustomUserViewSet(UserViewSet):
 class IngredientViewSet(ModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
-    filter_backends = (IngredientSearchFilter,)
-    search_fields = ('^name',)
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = IngredientFilter
     pagination_class = None
     http_method_names = ['get']
 
@@ -205,7 +205,7 @@ class RecipeViewSet(ModelViewSet):
     def download_shopping_cart(self, request):
         user = request.user
         ingredients = RecipeIngredient.objects.filter(
-            recipe__in=user.shopping_carts.values_list('recipe', flat=True)
+            recipe__in=user.shoppingcarts.values_list('recipe', flat=True)
         )
         shopping_cart = ''
         for ingredient in ingredients:

@@ -1,4 +1,5 @@
 import django_filters
+from django.db.models import Case, When, Q, Value, IntegerField
 from rest_framework import filters
 from rest_framework.pagination import PageNumberPagination
 
@@ -14,8 +15,18 @@ class CustomPagination(PageNumberPagination):
     page_size_query_param = 'limit'
 
 
-class IngredientSearchFilter(filters.SearchFilter):
-    search_param = 'name'
+class IngredientFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(method='filter_name')
+
+    def filter_name(self, queryset, name, value):
+        return queryset.filter(name__contains=value).annotate(
+            sort_by=Case(
+                When(Q(name__startswith=value), then=Value(1)),
+                When(Q(name__contains=value), then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField(),
+            )
+        ).order_by('sort_by', 'name')
 
 
 class RecipeFilter(django_filters.FilterSet):

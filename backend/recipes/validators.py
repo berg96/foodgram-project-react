@@ -19,3 +19,9 @@ def validate_username(username):
             f'{"".join(set(invalid_symbols))}'
         )
     return username
+
+
+def validate_color(color):
+    if color[0] != '#':
+        raise ValidationError('Цвет должен начинаться с #')
+    return color
