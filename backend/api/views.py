@@ -5,7 +5,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotAuthenticated
 from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -30,6 +30,7 @@ DOUBLE_SUBSCRIBE_ERROR = 'Вы уже подписаны на {}'
 SUBSCRIBE_SELF_ERROR = 'Нельзя подписаться на самого себя'
 RECIPE_NOT_FOUND_ERROR = 'Этого рецепта нет в {}'
 RECIPE_IS_ALREADY_IN_ERROR = 'Этот рецепт уже есть в {}'
+NOT_AUTHENTICATED_ERROR = 'Учетные данные не были предоставлены.'
 
 
 class UserWithSubscriptionViewSet(UserViewSet):
@@ -132,7 +133,12 @@ class RecipeViewSet(ModelViewSet):
         return RecipeWriteSerializer
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        user = self.request.user
+        if user.is_anonymous:
+            raise NotAuthenticated(
+                {'detail': NOT_AUTHENTICATED_ERROR},
+            )
+        serializer.save(author=user)
 
     def create_delete_for_recipe(self, request, model, recipe_id):
         recipe = get_object_or_404(Recipe, pk=recipe_id)
@@ -174,5 +180,6 @@ class RecipeViewSet(ModelViewSet):
                     self, request.user
                 )
             ),
-            as_attachment=True, filename='shopping_cart.txt'
+            as_attachment=True, filename='shopping_cart.txt',
+            content_type='text/plain'
         )
