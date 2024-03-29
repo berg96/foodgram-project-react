@@ -157,7 +157,7 @@ REST_FRAMEWORK = {
 DJOSER = {
     'LOGIN_FIELD': 'email',
     'PERMISSIONS': {
-        'user': ['api.permissions.CurrentUserOrReadOnly'],
+        'user': ['rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'],
         'user_list': ['rest_framework.permissions.AllowAny'],
     },
     'SERIALIZERS': {
