@@ -44,9 +44,10 @@ docker compose -f docker-compose.yml up -d
 docker compose -f docker-compose.yml exec backend python manage.py migrate
 docker compose -f docker-compose.yml exec backend python manage.py collectstatic
 ```
-Наполнить БД ингредиентами:
+Наполнить БД ингредиентами и тегами:
 ```
-docker compose -f docker-compose.yml exec backend python manage.py import_ingredients
+docker compose -f docker-compose.yml exec backend python manage.py import_ingredients_json
+sudo docker compose -f docker-compose.yml exec backend python manage.py import_tags_json
 ```
 
 ### Ревьюеру для входа в админ-зону
