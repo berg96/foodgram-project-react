@@ -101,7 +101,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           source: "infra/docker-compose.yml"
-          target: "foodgram/."
+          target: "foodgram"
       - name: Executing remote ssh commands to deploy
         uses: appleboy/ssh-action@master
         with:
@@ -111,7 +111,7 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             cd foodgram/infra
-            cp docker-compose.yml ../docker-compose.yml
+            sudo cp docker-compose.yml ../docker-compose.yml
             cd ..
             sudo docker compose -f docker-compose.yml pull
             sudo docker compose -f docker-compose.yml down
