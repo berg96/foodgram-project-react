@@ -116,7 +116,8 @@ jobs:
             sudo docker compose -f docker-compose.yml up -d
             sudo docker compose -f docker-compose.yml exec backend python manage.py migrate
             sudo docker compose -f docker-compose.yml exec backend python manage.py collectstatic
-            sudo docker compose -f docker-compose.yml exec backend python manage.py import_ingredients
+            sudo docker compose -f docker-compose.yml exec backend python manage.py import_ingredients_json
+            sudo docker compose -f docker-compose.yml exec backend python manage.py import_tags_json
 
   send_message:
     runs-on: ubuntu-latest
