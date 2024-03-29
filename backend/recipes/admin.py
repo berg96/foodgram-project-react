@@ -3,8 +3,8 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils.safestring import mark_safe
 
 from .models import (
-    Favorite, Ingredient, Recipe, RecipeIngredient, ShoppingCart, Tag, User,
-    Subscribe
+    Favorite, Ingredient, Recipe, RecipeIngredient, ShoppingCart, Subscribe,
+    Tag, User
 )
 
 
@@ -14,7 +14,7 @@ class MeasureUnitFilter(admin.SimpleListFilter):
 
     def lookups(self, request, model_admin):
         measurement_units = list(model_admin.model.objects.values_list(
-                    'measurement_unit', flat=True
+            'measurement_unit', flat=True
         ))
         return tuple(
             (
@@ -83,7 +83,7 @@ class AuthorWithRecipesFilter(admin.SimpleListFilter):
             (
                 author.username,
                 f'{author}'.split(' -')[0] + f' ({author.recipes.count()})'
-            ) for author in User.objects.filter(recipes__gte=0)
+            ) for author in set(User.objects.filter(recipes__gt=0))
         )
 
     def queryset(self, request, recipes):

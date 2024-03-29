@@ -3,7 +3,7 @@ from django.core.validators import MinValueValidator, validate_slug
 from django.db import models
 from django.db.models import Exists, OuterRef
 
-from .validators import validate_username, validate_color
+from .validators import validate_color, validate_username
 
 MAX_LENGTH = 200
 MAX_LENGTH_COLOR = 7
@@ -196,7 +196,7 @@ class BaseUserRecipeModel(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['recipe', 'user'],
-                name='unique_author_title'
+                name='unique_recipe_user_%(class)s'
             )
         ]
 
@@ -211,9 +211,14 @@ class Favorite(BaseUserRecipeModel):
 
 
 class ShoppingCart(BaseUserRecipeModel):
-    class Meta:
+    class Meta(BaseUserRecipeModel.Meta):
         verbose_name = 'Рецепт в списке покупок'
         verbose_name_plural = 'Рецепты в списках покупок'
 
     def __str__(self):
         return f'{self.recipe.name} у {self.user.username} в списке покупок'
+
+    def get_ingredients_from_shopping_carts(self, user):
+        return RecipeIngredient.objects.filter(
+            recipe__in=user.shoppingcarts.values_list('recipe', flat=True)
+        )
