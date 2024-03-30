@@ -125,6 +125,8 @@ class CookingTimeFilter(admin.SimpleListFilter):
         cooking_times = model_admin.get_queryset(request).values_list(
             'cooking_time', flat=True
         )
+        if not cooking_times:
+            return None
         cooking_times_dynamic = dynamic_queryset(
             request, model_admin.get_queryset(request)
         ).values_list('cooking_time', flat=True)

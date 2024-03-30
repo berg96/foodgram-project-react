@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
-    DjangoModelPermissionsOrAnonReadOnly, IsAuthenticated
+    IsAuthenticated, IsAuthenticatedOrReadOnly
 )
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -126,9 +126,7 @@ class RecipeViewSet(ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
     http_method_names = ['get', 'post', 'patch', 'delete']
-    permission_classes = [
-        AuthorOrReadOnly, DjangoModelPermissionsOrAnonReadOnly
-    ]
+    permission_classes = [AuthorOrReadOnly, IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
         return Recipe.objects.add_user_annotations(self.request.user.pk)
