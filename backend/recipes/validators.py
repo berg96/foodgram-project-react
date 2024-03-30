@@ -1,12 +1,12 @@
 import re
 
 from django.conf import settings
-from rest_framework.exceptions import ValidationError
+from django.core.exceptions import ValidationError
 
 PATTERN = r'[\w.@+-]'
 
 USERNAME_ERROR_MESSAGE = 'Нельзя использовать "{}" в качестве username'
-USERNAME_INVALID_CHARACTERS_ERROR = 'Недопустимые символы в username: '
+USERNAME_INVALID_CHARACTERS_ERROR = 'Недопустимые символы в username: {}'
 COLOR_FORMAT_ERROR = 'Цвет должен начинаться с #'
 
 
@@ -18,13 +18,8 @@ def validate_username(username):
     invalid_characters = re.sub(PATTERN, '', username)
     if invalid_characters:
         raise ValidationError(
-            USERNAME_INVALID_CHARACTERS_ERROR
-            + f'{"".join(set(invalid_characters))}'
+            USERNAME_INVALID_CHARACTERS_ERROR.format(
+                "".join(set(invalid_characters))
+            )
         )
     return username
-
-
-def validate_color(color):
-    if color[0] != '#':
-        raise ValidationError(COLOR_FORMAT_ERROR)
-    return color

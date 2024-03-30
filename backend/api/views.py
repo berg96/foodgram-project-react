@@ -5,9 +5,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotAuthenticated, ValidationError
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import (
+    IsAuthenticated, IsAuthenticatedOrReadOnly
+)
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -15,7 +18,7 @@ from recipes.models import (
     Favorite, Ingredient, Recipe, ShoppingCart, Subscribe, Tag
 )
 
-from .filters import IngredientFilter, PageNumberLimitPagination, RecipeFilter
+from .filters import IngredientFilter, RecipeFilter
 from .permissions import AuthorOrReadOnly
 from .serializers import (
     IngredientSerializer, RecipeReadSerializer, RecipeWriteSerializer,
@@ -28,9 +31,11 @@ User = get_user_model()
 
 DOUBLE_SUBSCRIBE_ERROR = 'Вы уже подписаны на {}'
 SUBSCRIBE_SELF_ERROR = 'Нельзя подписаться на самого себя'
-RECIPE_NOT_FOUND_ERROR = 'Этого рецепта нет в {}'
-RECIPE_IS_ALREADY_IN_ERROR = 'Этот рецепт уже есть в {}'
-NOT_AUTHENTICATED_ERROR = 'Учетные данные не были предоставлены.'
+RECIPE_IS_ALREADY_IN_ERROR = 'Этот рецепт уже добавлен'
+
+
+class PageNumberLimitPagination(PageNumberPagination):
+    page_size_query_param = 'limit'
 
 
 class UserWithSubscriptionViewSet(UserViewSet):
@@ -67,10 +72,9 @@ class UserWithSubscriptionViewSet(UserViewSet):
                 Subscribe, author=author, subscriber=user
             ).delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        _, flag = Subscribe.objects.get_or_create(
-            author=author, subscriber=user
-        )
-        if not flag:
+        if not Subscribe.objects.get_or_create(
+                author=author, subscriber=user
+        )[1]:
             raise ValidationError(
                 {'errors': DOUBLE_SUBSCRIBE_ERROR.format(author.username)}
             )
@@ -79,7 +83,7 @@ class UserWithSubscriptionViewSet(UserViewSet):
                 {'errors': SUBSCRIBE_SELF_ERROR}
             )
         data = SubscribeSerializer(author, context={
-            'recipes_limit': request.GET.get('recipes_limit', 10**10)
+            'recipes_limit': int(request.GET.get('recipes_limit', 10**10))
         }).data
         data['is_subscribed'] = True
         return Response(data, status.HTTP_201_CREATED)
@@ -92,10 +96,10 @@ class UserWithSubscriptionViewSet(UserViewSet):
         user = request.user
         return self.get_paginated_response(SubscribeSerializer(
             self.paginate_queryset(self.get_queryset().filter(
-                id__in=user.subscriptions.values_list('author', flat=True)
+                id__in=user.subscribers.values_list('author', flat=True)
             )), many=True,
             context={
-                'recipes_limit': request.GET.get('recipes_limit', 10**10)
+                'recipes_limit': int(request.GET.get('recipes_limit', 10**10))
             }
         ).data)
 
@@ -122,7 +126,7 @@ class RecipeViewSet(ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
     http_method_names = ['get', 'post', 'patch', 'delete']
-    permission_classes = [AuthorOrReadOnly]
+    permission_classes = [AuthorOrReadOnly, IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
         return Recipe.objects.add_user_annotations(self.request.user.pk)
@@ -133,24 +137,19 @@ class RecipeViewSet(ModelViewSet):
         return RecipeWriteSerializer
 
     def perform_create(self, serializer):
-        user = self.request.user
-        if user.is_anonymous:
-            raise NotAuthenticated(
-                {'detail': NOT_AUTHENTICATED_ERROR},
-            )
-        serializer.save(author=user)
+        serializer.save(author=self.request.user)
 
-    def create_delete_for_recipe(self, request, model, recipe_id):
+    @staticmethod
+    def create_delete_for_recipe(request, model, recipe_id):
         recipe = get_object_or_404(Recipe, pk=recipe_id)
         user = request.user
         if request.method == 'DELETE':
             get_object_or_404(model, user=user, recipe=recipe).delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        if model.objects.filter(user=user, recipe=recipe).exists():
+        if not model.objects.get_or_create(user=user, recipe=recipe)[1]:
             raise ValidationError(
-                {'errors': RECIPE_IS_ALREADY_IN_ERROR.format('избранных')}
+                {'errors': RECIPE_IS_ALREADY_IN_ERROR}
             )
-        model.objects.create(user=user, recipe=recipe)
         return Response(
             SimpleRecipeSerializer(recipe).data, status=status.HTTP_201_CREATED
         )
@@ -176,8 +175,8 @@ class RecipeViewSet(ModelViewSet):
     def download_shopping_cart(self, request):
         return FileResponse(
             create_shopping_cart(
-                ShoppingCart.get_ingredients_from_shopping_carts(
-                    self, request.user
+                *ShoppingCart.get_ingredients_from_shopping_carts(
+                    request.user.shoppingcarts.values_list('recipe', flat=True)
                 )
             ),
             as_attachment=True, filename='shopping_cart.txt',

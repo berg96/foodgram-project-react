@@ -1,5 +1,7 @@
+import pymorphy2
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.db.models import Count
 from django.utils.safestring import mark_safe
 
 from .models import (
@@ -29,22 +31,26 @@ class MeasureUnitFilter(admin.SimpleListFilter):
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
-    list_display = ('name', 'measurement_unit')
+    list_display = ('name', 'measurement_unit', 'in_recipes_count')
     list_filter = (MeasureUnitFilter,)
     search_fields = ('name',)
+    readonly_fields = ('in_recipes_count',)
+
+    @admin.display(description='В рецептах')
+    def in_recipes_count(self, ingredient):
+        return RecipeIngredient.objects.filter(ingredient=ingredient).count()
 
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ('name', 'display_color', 'slug')
+    list_display = ('name', 'color', 'display_color', 'slug')
 
     @admin.display(description='Цвет')
     @mark_safe
     def display_color(self, tag):
         return (
-            f'<div style="display:flex;">{tag.color}'
-            f'<div style="margin-left:10px; background-color:{tag.color}; '
-            'width:30px; height:30px;"></div>'
+            f'<div style="background-color:{tag.color}; '
+            f'width:30px; height:30px;">'
         )
 
 
@@ -58,14 +64,32 @@ class RecipeIngredientInline(admin.TabularInline):
     extra = 0
 
 
+def dynamic_queryset(request, recipes):
+    author = request.GET.get('author')
+    if author:
+        recipes = recipes.filter(author__username=author)
+    tag = request.GET.get('tag')
+    if tag:
+        recipes = recipes.filter(tags__slug=tag)
+    cooking_time = request.GET.get('cooking_time')
+    if cooking_time:
+        recipes = recipes.filter(
+            cooking_time__gte=int(cooking_time.split('-')[0]),
+            cooking_time__lt=int(cooking_time.split('-')[1])
+        )
+    return recipes
+
+
 class TagFilter(admin.SimpleListFilter):
     title = 'Теги'
     parameter_name = 'tag'
 
     def lookups(self, request, model_admin):
+        recipes = dynamic_queryset(request, model_admin.get_queryset(request))
         return tuple(
             (
-                tag.slug, f'{tag.name} ({tag.recipes.count()})'
+                tag.slug,
+                f'{tag.name} ({recipes.filter(tags__exact=tag).count()})'
             ) for tag in Tag.objects.all()
         )
 
@@ -79,10 +103,12 @@ class AuthorWithRecipesFilter(admin.SimpleListFilter):
     parameter_name = 'author'
 
     def lookups(self, request, model_admin):
+        recipes = dynamic_queryset(request, model_admin.get_queryset(request))
         return tuple(
             (
                 author.username,
-                f'{author}'.split(' -')[0] + f' ({author.recipes.count()})'
+                f'{author.__str__().split(" -")[0]} '
+                f'({recipes.filter(author=author).count()})'
             ) for author in set(User.objects.filter(recipes__gt=0))
         )
 
@@ -96,60 +122,101 @@ class CookingTimeFilter(admin.SimpleListFilter):
     parameter_name = 'cooking_time'
 
     def lookups(self, request, model_admin):
-        cooking_times = model_admin.model.objects.values_list(
+        cooking_times = model_admin.get_queryset(request).values_list(
             'cooking_time', flat=True
         )
-        fast_times = len([time for time in cooking_times if time < 10])
-        medium_times = len(
-            [time for time in cooking_times if time >= 10 | time < 45]
-        )
-        long_times = len([time for time in cooking_times if time >= 45])
-        return (
-            ('fast', f'быстрее 10 мин ({fast_times})'),
-            ('medium', f'быстрее 45 мин ({medium_times})'),
-            ('long', f'долго ({long_times})')
-        )
+        if not cooking_times:
+            return None
+        cooking_times_dynamic = dynamic_queryset(
+            request, model_admin.get_queryset(request)
+        ).values_list('cooking_time', flat=True)
+        min_cooking_time = min(cooking_times)
+        max_cooking_time = max(cooking_times)
+        bin_size = (max_cooking_time - min_cooking_time) / 3
+        fast = int(min_cooking_time + bin_size) + 1
+        medium = int(min_cooking_time + 2 * bin_size) + 1
+        flags = [0, 0, 0]
+        for time in cooking_times:
+            if time < fast:
+                flags[0] = 1
+            elif fast <= time < medium:
+                flags[1] = 1
+            else:
+                flags[2] = 1
+        fast_times = 0
+        medium_times = 0
+        long_times = 0
+        for time in cooking_times_dynamic:
+            if time < fast:
+                fast_times += 1
+            elif fast <= time < medium:
+                medium_times += 1
+            else:
+                long_times += 1
+        if flags == [1, 1, 1]:
+            return (
+                (
+                    f'{min_cooking_time}-{fast}',
+                    f'быстрее {fast} мин ({fast_times})'
+                ),
+                (
+                    f'{fast}-{medium}',
+                    f'быстрее {medium} мин ({medium_times})'
+                ),
+                (
+                    f'{medium}-{max_cooking_time + 1}',
+                    f'долго ({long_times})'
+                )
+            )
+        else:
+            return None
 
     def queryset(self, request, recipes):
-        if self.value() == 'fast':
-            return recipes.filter(cooking_time__lt=10)
-        if self.value() == 'medium':
-            return recipes.filter(cooking_time__gte=10, cooking_time__lt=45)
-        if self.value() == 'long':
-            return recipes.filter(cooking_time__gte=45)
+        if self.value():
+            return recipes.filter(
+                cooking_time__gte=int(self.value().split('-')[0]),
+                cooking_time__lt=int(self.value().split('-')[1])
+            )
 
 
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     list_display = (
         'display_image', 'name', 'author', 'display_tags',
-        'display_ingredients', 'favorite_count', 'pub_time'
+        'display_ingredients', 'cooking_time', 'in_favorite_count', 'pub_time'
     )
     inlines = [RecipeIngredientInline]
     list_filter = (CookingTimeFilter, TagFilter, AuthorWithRecipesFilter)
     filter_horizontal = ('tags',)
     search_fields = ('name',)
-    readonly_fields = ('favorite_count',)
+    readonly_fields = ('in_favorite_count',)
     list_display_links = ('display_image', 'name')
 
     @admin.display(description='В избранном')
-    def favorite_count(self, recipe):
+    def in_favorite_count(self, recipe):
         return Favorite.objects.filter(recipe=recipe).count()
 
     @admin.display(description='Теги')
     @mark_safe
     def display_tags(self, recipe):
-        return '<br>'.join([tag.name for tag in recipe.tags.all()])
+        return '<br>'.join(tag.name for tag in recipe.tags.all())
 
     @admin.display(description='Продукты')
     @mark_safe
     def display_ingredients(self, recipe):
-        ingredients_list = '<br>'.join(
-            [str(ingredient_with_amount).split(f' в {recipe.name}')[0]
-             for ingredient_with_amount in
-             recipe.ingredients_with_amount.all()]
+        morph = pymorphy2.MorphAnalyzer()
+        return (
+            '<br>'.join(
+                f'{name[:10]} {amount} '
+                f'{morph.parse(unit)[0].make_agree_with_number(amount).word}'
+                if unit != 'по вкусу' else f'{name[:10]} {amount} {unit}'
+                for name, amount, unit
+                in recipe.ingredients_recipe.values_list(
+                    'ingredient__name', 'amount',
+                    'ingredient__measurement_unit'
+                )
+            )
         )
-        return f'<div style="width: 250px;">{ingredients_list}</div>'
 
     @admin.display(description='Картинка')
     @mark_safe
@@ -178,20 +245,24 @@ class SubscribeFilter(admin.SimpleListFilter):
         users = model_admin.model.objects.all()
         return (
             (
-                'subscriptions',
-                f'Есть подписки ({users.filter(subscriptions__gte=0).count()})'
+                'subscribers',
+                f'Есть подписки ({len(set(users.filter(subscribers__gt=0)))})'
             ),
             (
-                'subscribers',
-                f'Есть подписчики ({users.filter(subscribers__gte=0).count()})'
+                'authors',
+                f'Есть подписчики ({len(set(users.filter(authors__gt=0)))})'
             ),
         )
 
     def queryset(self, request, users):
-        if self.value() == 'subscriptions':
-            return users.filter(subscriptions__gte=0)
         if self.value() == 'subscribers':
-            return users.filter(subscribers__gte=0)
+            return users.annotate(
+                num_subscriptions=Count('subscribers')
+            ).filter(num_subscriptions__gt=0)
+        if self.value() == 'authors':
+            return users.annotate(
+                num_subscribers=Count('authors')
+            ).filter(num_subscribers__gt=0)
 
 
 @admin.register(User)
@@ -203,17 +274,17 @@ class UserAdmin(UserAdmin):
     list_filter = (SubscribeFilter,)
     search_fields = ('username', 'email', 'first_name', 'last_name')
 
-    @admin.display(description='Кол-во рецептов')
+    @admin.display(description='Рецепты')
     def recipes_count(self, user):
         return user.recipes.count()
 
-    @admin.display(description='Кол-во подписок')
+    @admin.display(description='Подписки')
     def subscriptions_count(self, user):
-        return user.subscriptions.count()
-
-    @admin.display(description='Кол-во подписчиков')
-    def subscribers_count(self, user):
         return user.subscribers.count()
+
+    @admin.display(description='Подписчики')
+    def subscribers_count(self, user):
+        return user.authors.count()
 
 
 @admin.register(Subscribe)

@@ -1,9 +1,9 @@
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator, validate_slug
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Sum
 
-from .validators import validate_color, validate_username
+from .validators import validate_username
 
 MAX_LENGTH = 200
 MAX_LENGTH_COLOR = 7
@@ -11,6 +11,7 @@ MIN_VALUE_COOKING_TIME = 1
 MIN_VALUE_AMOUNT = 1
 MAX_LENGTH_USER_FIELDS = 150
 MAX_LENGTH_EMAIL = 254
+VALIDATE_COLOR_ERROR = 'Цвет должен быть в формате HEX-код'
 
 
 class User(AbstractUser):
@@ -44,16 +45,16 @@ class User(AbstractUser):
 
 class Subscribe(models.Model):
     author = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='subscribers',
+        User, on_delete=models.CASCADE, related_name='authors',
         verbose_name='Автор'
     )
     subscriber = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='subscriptions',
+        User, on_delete=models.CASCADE, related_name='subscribers',
         verbose_name='Подписчик'
     )
 
     class Meta:
-        verbose_name = 'Подписку'
+        verbose_name = 'Подписка'
         verbose_name_plural = 'Подписки'
 
     def __str__(self):
@@ -76,18 +77,24 @@ class Ingredient(models.Model):
     def __str__(self):
         return f'{self.name} ({self.measurement_unit})'
 
+    def save(self, *args, **kwargs):
+        self.name = self.name.lower()
+        super().save(*args, **kwargs)
+
 
 class Tag(models.Model):
     name = models.CharField(
         max_length=MAX_LENGTH, unique=True, verbose_name='Название'
     )
     color = models.CharField(
-        max_length=MAX_LENGTH_COLOR, unique=True, validators=[validate_color],
+        max_length=MAX_LENGTH_COLOR, unique=True,
+        validators=[RegexValidator(
+            regex=r'^#[a-fA-F0-9]{6}\Z', message=VALIDATE_COLOR_ERROR
+        )],
         verbose_name='Цвет'
     )
     slug = models.SlugField(
-        max_length=MAX_LENGTH, unique=True, validators=[validate_slug],
-        verbose_name='Слаг'
+        max_length=MAX_LENGTH, unique=True, verbose_name='Слаг'
     )
 
     class Meta:
@@ -159,11 +166,11 @@ class Recipe(models.Model):
 class RecipeIngredient(models.Model):
     ingredient = models.ForeignKey(
         Ingredient, on_delete=models.CASCADE,
-        related_name='recipes_with_amount', verbose_name='Продукт'
+        related_name='recipes_ingredient', verbose_name='Продукт'
     )
     recipe = models.ForeignKey(
         Recipe, on_delete=models.CASCADE,
-        related_name='ingredients_with_amount', verbose_name='Рецепт'
+        related_name='ingredients_recipe', verbose_name='Рецепт'
     )
     amount = models.IntegerField(
         validators=[MinValueValidator(MIN_VALUE_AMOUNT)],
@@ -218,7 +225,13 @@ class ShoppingCart(BaseUserRecipeModel):
     def __str__(self):
         return f'{self.recipe.name} у {self.user.username} в списке покупок'
 
-    def get_ingredients_from_shopping_carts(self, user):
-        return RecipeIngredient.objects.filter(
-            recipe__in=user.shoppingcarts.values_list('recipe', flat=True)
-        )
+    @staticmethod
+    def get_ingredients_from_shopping_carts(recipes_id):
+        return [
+            Ingredient.objects.filter(recipes__in=recipes_id).annotate(
+                total_amount=Sum('recipes_ingredient__amount')
+            ),
+            Recipe.objects.filter(id__in=recipes_id).values_list(
+                'name', flat=True
+            )
+        ]

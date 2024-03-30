@@ -1,26 +1,27 @@
-from collections import defaultdict
+from datetime import datetime
+
+import pymorphy2
 
 
-def create_shopping_cart(ingredients):
-    shopping_cart = defaultdict(int)
-    ingredient_unit = {}
-    recipes = []
-    for ingredient in ingredients:
-        shopping_cart[ingredient.ingredient.name] += ingredient.amount
-        recipes.append(ingredient.recipe.name)
-        ingredient_unit[
-            ingredient.ingredient.name
-        ] = ingredient.ingredient.measurement_unit
-    ingredients = [
-        (
-            f'{index + 1}. {ingredient.capitalize()} — '
-            f'{shopping_cart[ingredient]} {ingredient_unit[ingredient]}'
-        )
-        for index, ingredient in enumerate(shopping_cart)
-    ]
+def create_shopping_cart(ingredients, recipes):
+    morph = pymorphy2.MorphAnalyzer()
     return '\n'.join(
         (
-            'Необходимые продукты:\n', *ingredients,
-            '\nПеречень рецептов:\n', *recipes
+            f'{datetime.now().strftime("%d-%m-%Y %H:%M:%S")}',
+            'Необходимые продукты:', '',
+            *[
+                f'{index}. {name.capitalize()} — {amount} '
+                f'{morph.parse(unit)[0].make_agree_with_number(amount).word}'
+                if unit != 'по вкусу' else f'{index}. {name.capitalize()} — '
+                                           f'{amount} {unit}'
+                for index, (name, unit, amount) in enumerate(
+                    ingredients.values_list(
+                        'name', 'measurement_unit', 'total_amount'
+                    ),
+                    start=1
+                )
+            ],
+            '', 'Перечень рецептов:', '',
+            *recipes
         )
     )

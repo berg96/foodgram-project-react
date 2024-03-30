@@ -1,6 +1,5 @@
 import django_filters
 from django.db.models import Case, IntegerField, Q, Value, When
-from rest_framework.pagination import PageNumberPagination
 
 from recipes.models import Recipe, Tag
 
@@ -10,18 +9,14 @@ BOOLEAN_CHOICES = (
 )
 
 
-class PageNumberLimitPagination(PageNumberPagination):
-    page_size_query_param = 'limit'
-
-
 class IngredientFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(method='filter_name')
 
     def filter_name(self, ingredients, name, value):
-        return ingredients.filter(name__contains=value).annotate(
+        return ingredients.filter(name__contains=value.lower()).annotate(
             sort_by=Case(
-                When(Q(name__startswith=value), then=Value(1)),
-                When(Q(name__contains=value), then=Value(2)),
+                When(Q(name__startswith=value.lower()), then=Value(1)),
+                When(Q(name__contains=value.lower()), then=Value(2)),
                 default=Value(3),
                 output_field=IntegerField(),
             )

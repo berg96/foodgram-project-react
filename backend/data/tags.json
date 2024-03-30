@@ -5,12 +5,12 @@
     "slug": "breakfast"
   },
   {
-    "color": "#32cd32",
+    "color": "#32CD32",
     "name": "Обед",
     "slug": "lunch"
   },
   {
-    "color": "#8b00ff",
+    "color": "#8B00FF",
     "name": "Ужин",
     "slug": "dinner"
   }
