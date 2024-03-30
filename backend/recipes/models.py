@@ -225,8 +225,13 @@ class ShoppingCart(BaseUserRecipeModel):
     def __str__(self):
         return f'{self.recipe.name} у {self.user.username} в списке покупок'
 
-    def get_ingredients_from_shopping_carts(self, user):
-        return (RecipeIngredient.objects.filter(
-            recipe__in=user.shoppingcarts.values_list('recipe', flat=True)
-        ))
-                # .values('ingredient').annotate(total_amount=Sum('amount')))
+    @staticmethod
+    def get_ingredients_from_shopping_carts(recipes_id):
+        return [
+            Ingredient.objects.filter(recipes__in=recipes_id).annotate(
+                total_amount=Sum('recipes_ingredient__amount')
+            ),
+            Recipe.objects.filter(id__in=recipes_id).values_list(
+                'name', flat=True
+            )
+        ]

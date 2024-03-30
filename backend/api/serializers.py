@@ -5,7 +5,7 @@ from rest_framework import serializers
 from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag
 
 EMPTY_FIELD_ERROR = 'Поле имеет пустое значение'
-DUPLICATE_ID_ERROR = 'Содержатся повторяющиеся значения id: '
+DUPLICATE_ID_ERROR = 'Содержатся повторяющиеся значения id: {}'
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -46,7 +46,7 @@ class SubscribeSerializer(UserWithSubscriptionSerializer):
     def to_representation(self, user):
         representation = super().to_representation(user)
         representation['recipes'] = (
-            representation['recipes'][:int(self.context.get('recipes_limit'))]
+            representation['recipes'][:self.context['recipes_limit']]
         )
         return representation
 
@@ -73,7 +73,7 @@ class RecipeReadSerializer(serializers.ModelSerializer):
     image = Base64ImageField()
     tags = TagSerializer(many=True)
     ingredients = RecipeIngredientSerializer(
-        many=True, source='ingredients_with_amount'
+        many=True, source='ingredients_recipe'
     )
     author = UserWithSubscriptionSerializer(read_only=True)
 
@@ -103,24 +103,27 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
             'tags', 'ingredients', 'image', 'name', 'text', 'cooking_time'
         )
 
-    def validate_tags_ingredients(self, value, flag=None):
-        input_value = value
-        if len(value) < 1:
+    @staticmethod
+    def validate_tags_ingredients(values):
+        if len(values) < 1:
             raise serializers.ValidationError([EMPTY_FIELD_ERROR])
-        if flag:
-            value = [ingredient['id'] for ingredient in value]
-        duplicated_ids = [str(x.id) for x in value if value.count(x) > 1]
+        duplicated_ids = [
+            str(item.id) for item in values if values.count(item) > 1
+        ]
         if duplicated_ids:
             raise serializers.ValidationError(
-                [DUPLICATE_ID_ERROR + ', '.join(set(duplicated_ids))]
+                [DUPLICATE_ID_ERROR.format(', '.join(set(duplicated_ids)))]
             )
-        return input_value
+        return values
 
     def validate_tags(self, tags):
         return self.validate_tags_ingredients(tags)
 
     def validate_ingredients(self, ingredients):
-        return self.validate_tags_ingredients(ingredients, flag=True)
+        self.validate_tags_ingredients(
+            [ingredient['id'] for ingredient in ingredients]
+        )
+        return ingredients
 
     def validate_image(self, image):
         if not image:
@@ -130,12 +133,13 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
     def to_representation(self, recipe):
         return RecipeReadSerializer(recipe).data
 
-    def create_recipe_ingredients(self, recipe, ingredients):
-        RecipeIngredient.objects.bulk_create([RecipeIngredient(
+    @staticmethod
+    def create_recipe_ingredients(recipe, ingredients):
+        RecipeIngredient.objects.bulk_create(RecipeIngredient(
             recipe=recipe,
             ingredient=ingredient['id'],
             amount=ingredient['amount']
-        ) for ingredient in ingredients])
+        ) for ingredient in ingredients)
 
     def create(self, validated_data):
         ingredients = validated_data.pop('ingredients')
@@ -155,6 +159,7 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
             error['ingredients'] = [EMPTY_FIELD_ERROR]
         if error:
             raise serializers.ValidationError(error)
+        recipe.tags.set(tags)
         recipe.ingredients.clear()
         self.create_recipe_ingredients(recipe, ingredients)
         return super().update(recipe, validated_data)
