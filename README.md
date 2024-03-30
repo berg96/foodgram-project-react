@@ -49,13 +49,3 @@ docker compose -f docker-compose.yml exec backend python manage.py collectstatic
 docker compose -f docker-compose.yml exec backend python manage.py import_ingredients_json
 sudo docker compose -f docker-compose.yml exec backend python manage.py import_tags_json
 ```
-
-### Ревьюеру для входа в админ-зону
-
-IP = 62.84.121.33:8000
-
-hostname = [https://foodgram-berg.ddns.net](https://foodgram-berg.ddns.net)
-
-email = reviewer@yandex.ru
-
-password = reviewerreviewer
