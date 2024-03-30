@@ -3,12 +3,14 @@
 
 ## Описание проекта 
 
-Проект Foodgram позволяет зарегистрированным пользователям выкладывать свои рецепты.
-[Foodgram](https://foodgram-berg.ddns.net)
+Проект Foodgram позволяет зарегистрированным пользователям публиковать рецепты, добавлять чужие рецепты в избранное и подписываться на публикации других авторов.
+Пользователям также доступен сервис «Список покупок». Он позволит создавать список продуктов, которые нужно купить для приготовления выбранных блюд.
+На главной странице список первых шести рецептов, отсортированных по дате публикации «от новых к старым», а при нажатии на один из них появится полное описание.
+На некоторых страницах осуществлена фильтрация по тегам. При нажатии на название тега выводится список рецептов, отмеченных этим тегом. Фильтрация может проводиться по нескольким тегам в комбинации «или»: если выбрано несколько тегов — в результате показываются рецепты, которые отмечены хотя бы одним из этих тегов.
 
-TODO
+[Foodgram](https://foodgram-berg.ddns.net) [(https://foodgram-berg.ddns.net)](https://foodgram-berg.ddns.net)
 
-### Автор проекта Артём Куликов
+### Автор backend Артём Куликов
 
 tg: [@Berg1005](https://t.me/berg1005)
 
@@ -42,7 +44,18 @@ docker compose -f docker-compose.yml up -d
 docker compose -f docker-compose.yml exec backend python manage.py migrate
 docker compose -f docker-compose.yml exec backend python manage.py collectstatic
 ```
-Наполнить БД ингредиентами:
+Наполнить БД ингредиентами и тегами:
 ```
-docker compose -f docker-compose.yml exec backend python manage.py import_ingredients
+docker compose -f docker-compose.yml exec backend python manage.py import_ingredients_json
+sudo docker compose -f docker-compose.yml exec backend python manage.py import_tags_json
 ```
+
+### Ревьюеру для входа в админ-зону
+
+IP = 62.84.121.33:8000
+
+hostname = [https://foodgram-berg.ddns.net](https://foodgram-berg.ddns.net)
+
+email = reviewer@yandex.ru
+
+password = reviewerreviewer
