@@ -77,10 +77,6 @@ class Ingredient(models.Model):
     def __str__(self):
         return f'{self.name} ({self.measurement_unit})'
 
-    def save(self, *args, **kwargs):
-        self.name = self.name.lower()
-        super().save(*args, **kwargs)
-
 
 class Tag(models.Model):
     name = models.CharField(
@@ -165,12 +161,10 @@ class Recipe(models.Model):
 
 class RecipeIngredient(models.Model):
     ingredient = models.ForeignKey(
-        Ingredient, on_delete=models.CASCADE,
-        related_name='recipes_ingredient', verbose_name='Продукт'
+        Ingredient, on_delete=models.CASCADE, verbose_name='Продукт'
     )
     recipe = models.ForeignKey(
-        Recipe, on_delete=models.CASCADE,
-        related_name='ingredients_recipe', verbose_name='Рецепт'
+        Recipe, on_delete=models.CASCADE, verbose_name='Рецепт'
     )
     amount = models.IntegerField(
         validators=[MinValueValidator(MIN_VALUE_AMOUNT)],
@@ -181,6 +175,7 @@ class RecipeIngredient(models.Model):
         verbose_name = 'Продукт в рецепте'
         verbose_name_plural = 'Продукты в рецептах'
         ordering = ('recipe',)
+        default_related_name = 'ingredients_in_recipes'
 
     def __str__(self):
         return (f'{self.ingredient.name} {self.amount} '
@@ -226,10 +221,11 @@ class ShoppingCart(BaseUserRecipeModel):
         return f'{self.recipe.name} у {self.user.username} в списке покупок'
 
     @staticmethod
-    def get_ingredients_from_shopping_carts(recipes_id):
+    def get_ingredients_and_recipes(user):
+        recipes_id = user.shoppingcarts.values_list('recipe', flat=True)
         return [
             Ingredient.objects.filter(recipes__in=recipes_id).annotate(
-                total_amount=Sum('recipes_ingredient__amount')
+                total_amount=Sum('ingredients_in_recipes__amount')
             ),
             Recipe.objects.filter(id__in=recipes_id).values_list(
                 'name', flat=True

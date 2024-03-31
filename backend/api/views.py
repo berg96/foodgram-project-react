@@ -175,9 +175,7 @@ class RecipeViewSet(ModelViewSet):
     def download_shopping_cart(self, request):
         return FileResponse(
             create_shopping_cart(
-                *ShoppingCart.get_ingredients_from_shopping_carts(
-                    request.user.shoppingcarts.values_list('recipe', flat=True)
-                )
+                *ShoppingCart.get_ingredients_and_recipes(request.user)
             ),
             as_attachment=True, filename='shopping_cart.txt',
             content_type='text/plain'

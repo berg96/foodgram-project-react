@@ -1,4 +1,3 @@
-import pymorphy2
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.db.models import Count
@@ -38,7 +37,7 @@ class IngredientAdmin(admin.ModelAdmin):
 
     @admin.display(description='В рецептах')
     def in_recipes_count(self, ingredient):
-        return RecipeIngredient.objects.filter(ingredient=ingredient).count()
+        return ingredient.ingredients_in_recipes.count()
 
 
 @admin.register(Tag)
@@ -73,10 +72,7 @@ def dynamic_queryset(request, recipes):
         recipes = recipes.filter(tags__slug=tag)
     cooking_time = request.GET.get('cooking_time')
     if cooking_time:
-        recipes = recipes.filter(
-            cooking_time__gte=int(cooking_time.split('-')[0]),
-            cooking_time__lt=int(cooking_time.split('-')[1])
-        )
+        return recipes.filter(cooking_time__range=eval(cooking_time))
     return recipes
 
 
@@ -122,27 +118,21 @@ class CookingTimeFilter(admin.SimpleListFilter):
     parameter_name = 'cooking_time'
 
     def lookups(self, request, model_admin):
-        cooking_times = model_admin.get_queryset(request).values_list(
-            'cooking_time', flat=True
-        )
-        if not cooking_times:
+        cooking_times = [
+            recipe.cooking_time for recipe in Recipe.objects.all()
+        ]
+        if len(cooking_times) < 3:
             return None
+        max_cooking_time, min_cooking_time = (
+            max(cooking_times), min(cooking_times)
+        )
+        if max_cooking_time - min_cooking_time < 3:
+            return None
+        fast = (max_cooking_time + min_cooking_time) // 3
+        medium = (max_cooking_time + min_cooking_time) // 3 * 2
         cooking_times_dynamic = dynamic_queryset(
-            request, model_admin.get_queryset(request)
+            request, Recipe.objects.all()
         ).values_list('cooking_time', flat=True)
-        min_cooking_time = min(cooking_times)
-        max_cooking_time = max(cooking_times)
-        bin_size = (max_cooking_time - min_cooking_time) / 3
-        fast = int(min_cooking_time + bin_size) + 1
-        medium = int(min_cooking_time + 2 * bin_size) + 1
-        flags = [0, 0, 0]
-        for time in cooking_times:
-            if time < fast:
-                flags[0] = 1
-            elif fast <= time < medium:
-                flags[1] = 1
-            else:
-                flags[2] = 1
         fast_times = 0
         medium_times = 0
         long_times = 0
@@ -153,30 +143,15 @@ class CookingTimeFilter(admin.SimpleListFilter):
                 medium_times += 1
             else:
                 long_times += 1
-        if flags == [1, 1, 1]:
-            return (
-                (
-                    f'{min_cooking_time}-{fast}',
-                    f'быстрее {fast} мин ({fast_times})'
-                ),
-                (
-                    f'{fast}-{medium}',
-                    f'быстрее {medium} мин ({medium_times})'
-                ),
-                (
-                    f'{medium}-{max_cooking_time + 1}',
-                    f'долго ({long_times})'
-                )
-            )
-        else:
-            return None
+        return (
+            ((0, fast - 1), f'быстрее {fast} мин ({fast_times})'),
+            ((fast, medium - 1), f'быстрее {medium} мин ({medium_times})'),
+            ((medium, max_cooking_time), f'долго ({long_times})')
+        )
 
     def queryset(self, request, recipes):
         if self.value():
-            return recipes.filter(
-                cooking_time__gte=int(self.value().split('-')[0]),
-                cooking_time__lt=int(self.value().split('-')[1])
-            )
+            return recipes.filter(cooking_time__range=eval(self.value()))
 
 
 @admin.register(Recipe)
@@ -194,7 +169,7 @@ class RecipeAdmin(admin.ModelAdmin):
 
     @admin.display(description='В избранном')
     def in_favorite_count(self, recipe):
-        return Favorite.objects.filter(recipe=recipe).count()
+        return recipe.favorites.count()
 
     @admin.display(description='Теги')
     @mark_safe
@@ -204,17 +179,12 @@ class RecipeAdmin(admin.ModelAdmin):
     @admin.display(description='Продукты')
     @mark_safe
     def display_ingredients(self, recipe):
-        morph = pymorphy2.MorphAnalyzer()
         return (
             '<br>'.join(
-                f'{name[:10]} {amount} '
-                f'{morph.parse(unit)[0].make_agree_with_number(amount).word}'
-                if unit != 'по вкусу' else f'{name[:10]} {amount} {unit}'
-                for name, amount, unit
-                in recipe.ingredients_recipe.values_list(
-                    'ingredient__name', 'amount',
-                    'ingredient__measurement_unit'
-                )
+                f'{ingredient.ingredient.name[:10]} '
+                f'({ingredient.ingredient.measurement_unit}) '
+                f'{ingredient.amount}'
+                for ingredient in recipe.ingredients_in_recipes.all()
             )
         )
 
