@@ -108,7 +108,7 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         ]
         if duplicated_ids:
             raise serializers.ValidationError(
-                [DUPLICATE_ID_ERROR.format(', '.join(set(duplicated_ids)))]
+                [DUPLICATE_ID_ERROR.format(id) for id in set(duplicated_ids)]
             )
         return values
 
