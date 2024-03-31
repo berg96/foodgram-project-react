@@ -5,7 +5,7 @@ from rest_framework import serializers
 from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag
 
 EMPTY_FIELD_ERROR = 'Поле имеет пустое значение'
-DUPLICATE_ID_ERROR = 'Содержатся повторяющиеся значения id: {}'
+DUPLICATE_ID_ERROR = ' - повторяющиеся значения id.'
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -107,14 +107,11 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
             str(item.id) for item in values if values.count(item) > 1
         ]
         if duplicated_ids:
-            raise serializers.ValidationError(
-                [{
-                    'id': [
-                        DUPLICATE_ID_ERROR.format(id)
-                        for id in set(duplicated_ids)
-                    ]
-                }]
-            )
+            error = {
+                'duplicated_id': [id for id in set(duplicated_ids)]
+            }
+            error['duplicated_id'].append(DUPLICATE_ID_ERROR)
+            raise serializers.ValidationError([error])
         return values
 
     def validate_tags(self, tags):
