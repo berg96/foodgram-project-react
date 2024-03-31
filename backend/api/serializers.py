@@ -53,12 +53,13 @@ class SubscribeSerializer(UserWithSubscriptionSerializer):
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     id = serializers.PrimaryKeyRelatedField(
-        read_only=True, source='ingredient'
+        queryset=Ingredient.objects.all(), source='ingredient'
     )
     name = serializers.StringRelatedField(source='ingredient.name')
     measurement_unit = serializers.StringRelatedField(
         source='ingredient.measurement_unit'
     )
+    amount = serializers.IntegerField(min_value=1)
 
     class Meta:
         model = RecipeIngredient
@@ -85,14 +86,9 @@ class RecipeReadSerializer(serializers.ModelSerializer):
         )
 
 
-class IngredientAmountSerializer(serializers.Serializer):
-    id = serializers.PrimaryKeyRelatedField(queryset=Ingredient.objects.all())
-    amount = serializers.IntegerField(min_value=1)
-
-
 class RecipeWriteSerializer(serializers.ModelSerializer):
     image = Base64ImageField(required=True)
-    ingredients = IngredientAmountSerializer(many=True, required=True)
+    ingredients = RecipeIngredientSerializer(many=True, required=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), many=True, required=True
     )
@@ -121,7 +117,7 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
 
     def validate_ingredients(self, ingredients):
         self.validate_tags_ingredients(
-            [ingredient['id'] for ingredient in ingredients]
+            [ingredient['ingredient'] for ingredient in ingredients]
         )
         return ingredients
 
@@ -137,7 +133,7 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
     def create_recipe_ingredients(recipe, ingredients):
         RecipeIngredient.objects.bulk_create(RecipeIngredient(
             recipe=recipe,
-            ingredient=ingredient['id'],
+            ingredient=ingredient['ingredient'],
             amount=ingredient['amount']
         ) for ingredient in ingredients)
 
