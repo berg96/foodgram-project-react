@@ -100,7 +100,7 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         )
 
     @staticmethod
-    def validate_tags_ingredients(values):
+    def validate_tags_ingredients(values, model):
         if len(values) < 1:
             raise serializers.ValidationError([EMPTY_FIELD_ERROR])
         duplicated_ids = [
@@ -108,18 +108,24 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         ]
         if duplicated_ids:
             error = {
-                'duplicated_id': [id for id in set(duplicated_ids)]
+                'duplicated': [
+                    f'{ingredient.name} ({ingredient.id})'
+                    for ingredient in model.objects.filter(
+                        id__in=duplicated_ids
+                    )
+                ]
             }
-            error['duplicated_id'].append(DUPLICATE_ID_ERROR)
+            error['duplicated'].append(DUPLICATE_ID_ERROR)
             raise serializers.ValidationError([error])
         return values
 
     def validate_tags(self, tags):
-        return self.validate_tags_ingredients(tags)
+        return self.validate_tags_ingredients(tags, Tag)
 
     def validate_ingredients(self, ingredients):
         self.validate_tags_ingredients(
-            [ingredient['ingredient'] for ingredient in ingredients]
+            [ingredient['ingredient'] for ingredient in ingredients],
+            Ingredient
         )
         return ingredients
 
