@@ -13,10 +13,10 @@ class IngredientFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(method='filter_name')
 
     def filter_name(self, ingredients, name, value):
-        return ingredients.filter(name__contains=value.lower()).annotate(
+        return ingredients.filter(name__icontains=value.lower()).annotate(
             sort_by=Case(
                 When(Q(name__startswith=value.lower()), then=Value(1)),
-                When(Q(name__contains=value.lower()), then=Value(2)),
+                When(Q(name__icontains=value.lower()), then=Value(2)),
                 default=Value(3),
                 output_field=IntegerField(),
             )
