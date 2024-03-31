@@ -182,8 +182,8 @@ class RecipeAdmin(admin.ModelAdmin):
         return (
             '<br>'.join(
                 f'{ingredient.ingredient.name[:10]} '
-                f'({ingredient.ingredient.measurement_unit}) '
-                f'{ingredient.amount}'
+                f'{ingredient.amount} '
+                f'({ingredient.ingredient.measurement_unit})'
                 for ingredient in recipe.ingredients_in_recipes.all()
             )
         )
