@@ -1,4 +1,3 @@
-import pymorphy2
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.db.models import Count
@@ -73,10 +72,7 @@ def dynamic_queryset(request, recipes):
         recipes = recipes.filter(tags__slug=tag)
     cooking_time = request.GET.get('cooking_time')
     if cooking_time:
-        min_max_time = cooking_time
-        if not min_max_time:
-            return recipes
-        return recipes.filter(cooking_time__range=eval(min_max_time))
+        return recipes.filter(cooking_time__range=eval(cooking_time))
     return recipes
 
 
@@ -148,18 +144,14 @@ class CookingTimeFilter(admin.SimpleListFilter):
             else:
                 long_times += 1
         return (
-            ((0, fast), f'быстрее {fast} мин ({fast_times})'),
-            ((fast, medium), f'быстрее {medium} мин ({medium_times})'),
-            ((medium, max_cooking_time+1),  f'долго ({long_times})')
+            ((0, fast - 1), f'быстрее {fast} мин ({fast_times})'),
+            ((fast, medium - 1), f'быстрее {medium} мин ({medium_times})'),
+            ((medium, max_cooking_time), f'долго ({long_times})')
         )
 
     def queryset(self, request, recipes):
-        min_max_time = self.value()
-        if not min_max_time:
-            return recipes
-        return recipes.filter(
-            cooking_time__range=eval(min_max_time)
-        )
+        if self.value():
+            return recipes.filter(cooking_time__range=eval(self.value()))
 
 
 @admin.register(Recipe)
@@ -187,17 +179,12 @@ class RecipeAdmin(admin.ModelAdmin):
     @admin.display(description='Продукты')
     @mark_safe
     def display_ingredients(self, recipe):
-        morph = pymorphy2.MorphAnalyzer()
         return (
             '<br>'.join(
-                f'{name[:10]} {amount} '
-                f'{morph.parse(unit)[0].make_agree_with_number(amount).word}'
-                if unit != 'по вкусу' else f'{name[:10]} {amount} {unit}'
-                for name, amount, unit
-                in recipe.ingredients_in_recipes.values_list(
-                    'ingredient__name', 'amount',
-                    'ingredient__measurement_unit'
-                )
+                f'{ingredient.ingredient.name[:10]} '
+                f'({ingredient.ingredient.measurement_unit}) '
+                f'{ingredient.amount}'
+                for ingredient in recipe.ingredients_in_recipes.all()
             )
         )
 

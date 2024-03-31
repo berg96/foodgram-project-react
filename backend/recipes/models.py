@@ -221,7 +221,8 @@ class ShoppingCart(BaseUserRecipeModel):
         return f'{self.recipe.name} у {self.user.username} в списке покупок'
 
     @staticmethod
-    def get_ingredients_from_shopping_carts(recipes_id):
+    def get_ingredients_and_recipes(user):
+        recipes_id = user.shoppingcarts.values_list('recipe', flat=True)
         return [
             Ingredient.objects.filter(recipes__in=recipes_id).annotate(
                 total_amount=Sum('ingredients_in_recipes__amount')
